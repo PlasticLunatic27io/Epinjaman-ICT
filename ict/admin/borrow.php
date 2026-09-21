@@ -1,0 +1,213 @@
+<?php 
+require_once __DIR__ . "/../dbcon.php"; 
+$conn = dbcon(); 
+session_start();
+require_once __DIR__ . '/admin_auth_guard.php';
+$activeAdminAccount = adminRequireActiveAccount($conn ?? null);
+
+if (!isset($_SESSION['id']) || (trim($_SESSION['id']) == '')) {
+    header("location:index.php");
+    exit();
+}
+$session_id = $_SESSION['id'];
+
+$query_user = mysqli_query($conn, "SELECT * FROM user WHERE user_id = '$session_id'") or die(mysqli_error($conn));
+$user_row = mysqli_fetch_array($query_user);
+
+// Set current page for sidebar
+$current_page = 'borrow';
+?>
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Process Requests | ePinjamICT</title>
+    
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <style>
+        :root {
+            --cream-bg: #FDFCF7;
+            --macos-glass: rgba(255, 255, 255, 0.65);
+            --primary-blue: #1E3A8A;
+        }
+
+        body {
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            background-color: var(--cream-bg);
+            background-image: radial-gradient(at 0% 0%, rgba(30, 58, 138, 0.03) 0px, transparent 40%);
+            color: #1F2937;
+            overflow: hidden;
+            height: 100vh;
+        }
+
+        .glass-panel {
+            background: var(--macos-glass);
+            backdrop-filter: blur(20px) saturate(180%);
+            border: 1px solid rgba(255, 255, 255, 0.7);
+        }
+
+        .table-container {
+            background: white;
+            border-radius: 24px;
+            box-shadow: 0 4px 30px rgba(0, 0, 0, 0.03);
+            border: 1px solid rgba(0,0,0,0.02);
+        }
+
+        .sidebar-item {
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            border-radius: 12px;
+            font-size: 13px;
+        }
+
+        .sidebar-item:hover {
+            background: rgba(30, 58, 138, 0.06);
+            transform: translateX(4px);
+        }
+
+        .sidebar-active {
+            background: white !important;
+            box-shadow: 0 4px 20px -5px rgba(0,0,0,0.05);
+            color: #1E3A8A !important;
+            font-weight: 800;
+        }
+
+        th {
+            font-size: 10px !important;
+            text-transform: uppercase !important;
+            letter-spacing: 0.1em !important;
+            color: #9CA3AF !important;
+            padding: 15px !important;
+            border-bottom: 1px solid #F3F4F6 !important;
+        }
+
+        td {
+            padding: 15px !important;
+            font-size: 13px !important;
+            border-bottom: 1px solid #F9FAFB !important;
+        }
+
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        html { font-size: 14px; }
+    </style>
+</head>
+<body class="flex">
+
+    <?php include('sidebar_component.php'); ?>
+
+    <main class="flex-1 flex flex-col overflow-hidden">
+        
+        <!-- Header -->
+        <header class="h-20 glass-panel border-b border-gray-200 flex items-center justify-between px-10">
+            <div class="flex items-center gap-2">
+                <span class="text-xs uppercase tracking-widest font-black text-blue-900/40">Transactions</span>
+                <i class="fa-solid fa-chevron-right text-[10px] text-gray-300"></i>
+                <h1 class="text-xs font-bold text-gray-600 italic">Pending Requests</h1>
+            </div>
+
+            <div class="flex items-center gap-4">
+                <div class="text-right hidden sm:block">
+                    <p class="text-xs font-black text-blue-900 leading-none"><?php echo $user_row['name']; ?></p>
+                    <p class="text-[10px] font-bold text-amber-500 uppercase tracking-tighter italic">BP-ICT-2026</p>
+                </div>
+                <img src="<?php echo $user_row['adminthumbnails']; ?>" class="w-10 h-10 rounded-xl object-cover ring-2 ring-white shadow-md">
+            </div>
+        </header>
+
+        <!-- Main Content -->
+        <div class="flex-1 p-10 overflow-y-auto no-scrollbar">
+            
+            <div class="flex items-center justify-between mb-8">
+                <h2 class="text-2xl font-black text-blue-900 tracking-tighter uppercase italic">Process Requests</h2>
+                <?php if (($newRequestCount ?? 0) > 0): ?>
+                    <div class="bg-blue-900 text-white px-5 py-2 rounded-2xl font-black text-[11px] uppercase tracking-[0.2em] shadow-xl shadow-blue-900/20">
+                        Unseen: <?php echo (int)$newRequestCount; ?>
+                    </div>
+                <?php endif; ?>
+            </div>
+
+            <div class="table-container p-4 overflow-hidden">
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left border-collapse">
+                        <thead>
+                            <tr>
+                                <th>Personnel</th>
+                                <th>Requested Item(s)</th>
+                                <th>Schedule</th>
+                                <th>Booking Type</th>
+                                <th>Status</th>
+                                <th class="text-center">Action</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <?php 
+                            $device_query = mysqli_query($conn,"select * from borrowing where (status IN ('Baru','Menunggu Kelulusan') OR EXISTS (SELECT 1 FROM borrowing_approvals wa WHERE wa.borrow_id=borrowing.borrow_id AND wa.handed_over_at IS NULL AND wa.approval_id=(SELECT MAX(wb.approval_id) FROM borrowing_approvals wb WHERE wb.borrow_id=borrowing.borrow_id))) ORDER BY borrowing.borrow_id DESC")or die(mysqli_error($conn));
+                            while($row = mysqli_fetch_array($device_query)){
+                                $id = $row['borrow_id'];
+                                $id2= $row['pemohon_college_id'];
+                            ?>
+                            <tr class="hover:bg-gray-50/50 transition-all group">
+                                <td>
+                                    <p class="font-black text-blue-900 uppercase text-xs">
+                                        <?php
+                                            $q_p = mysqli_query($conn, "SELECT pemohon_name FROM pemohon WHERE pemohon_college_id = '$id2'");
+                                            $r_p = mysqli_fetch_assoc($q_p);
+                                            echo $r_p['pemohon_name'];
+                                        ?>
+                                    </p>
+                                    <p class="text-[10px] text-gray-400 font-mono font-bold"><?php echo $id2; ?></p>
+                                </td>
+                                <td class="max-w-xs">
+                                    <p class="text-[11px] font-bold text-gray-600 truncate"><?php echo $row['borrow_item']; ?></p>
+                                    <p class="text-[9px] text-blue-600/50 uppercase font-black tracking-tighter">Purpose: <?php echo $row['purpose']; ?></p>
+                                </td>
+                                <td>
+                                    <div class="space-y-1">
+                                        <p class="text-[10px] font-bold text-emerald-600"><i class="fa-solid fa-calendar-plus mr-1 opacity-50"></i><?php echo date('d M, H:i', strtotime($row['start_date'])); ?></p>
+                                        <p class="text-[10px] font-bold text-red-400"><i class="fa-solid fa-calendar-minus mr-1 opacity-50"></i><?php echo date('d M, H:i', strtotime($row['end_date'])); ?></p>
+                                    </div>
+                                </td>
+                                <td>
+                                    <span class="px-3 py-1 rounded-lg bg-gray-100 text-gray-500 text-[9px] font-black uppercase tracking-widest border border-gray-200/50">
+                                        <?php echo $row['type']; ?>
+                                    </span>
+                                </td>
+                                <td>
+                                    <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-50 text-amber-600 text-[9px] font-black uppercase ring-1 ring-amber-100 animate-pulse">
+                                        <span class="w-1.5 h-1.5 bg-amber-500 rounded-full"></span>
+                                        <?php echo $row['status']; ?>
+                                    </span>
+                                </td>
+                                <td class="text-center">
+                                    <a href="release.php<?php echo '?id='.$id; ?>" class="bg-emerald-600 text-white px-5 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest shadow-lg shadow-emerald-100 hover:bg-emerald-700 hover:scale-105 transition-all inline-block">
+                                        Process
+                                    </a>
+                                </td>
+                            </tr>
+                            <?php } ?>
+                        </tbody>
+                    </table>
+                </div>
+
+                <?php if(mysqli_num_rows($device_query) == 0): ?>
+                <div class="flex flex-col items-center justify-center py-20 opacity-30">
+                    <i class="fa-solid fa-envelope-open text-5xl mb-4"></i>
+                    <p class="text-xs font-black uppercase tracking-widest">No pending applications found.</p>
+                </div>
+                <?php endif; ?>
+            </div>
+
+            <!-- Footer -->
+            <footer class="mt-12 py-8 border-t border-gray-200/50 flex justify-between items-center opacity-40">
+                <p class="text-[10px] font-black text-gray-500 uppercase tracking-[0.4em]">KPTM BP • 2026</p>
+                <p class="text-[10px] font-black text-blue-900 uppercase">AHA Studio</p>
+            </footer>
+        </div>
+    </main>
+
+</body>
+</html>

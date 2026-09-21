@@ -1,0 +1,255 @@
+<?php 
+require_once __DIR__ . "/../dbcon.php"; 
+$conn = dbcon(); 
+session_start();
+
+if (!isset($_SESSION['id']) || (trim($_SESSION['id']) == '')) {
+    header("location:index.php");
+    exit();
+}
+$session_id = $_SESSION['id'];
+
+$query_user = mysqli_query($conn, "SELECT * FROM user WHERE user_id = '$session_id'") or die(mysqli_error($conn));
+$user_row = mysqli_fetch_array($query_user);
+
+$current_page = 'pemohon';
+
+// Process CSV Upload
+if(isset($_POST['import_csv'])) {
+    $file = $_FILES['csvFile']['tmp_name'];
+    if($file && file_exists($file)) {
+        $success_count = 0; $error_count = 0; $errors = [];
+        if (($handle = fopen($file, "r")) !== FALSE) {
+            $row_number = 0;
+            $first_row = fgetcsv($handle); 
+            
+            // Check if first row is header (contains "Name" or "ID")
+            $has_header = (stripos($first_row[0], 'name') !== false || stripos($first_row[1], 'id') !== false);
+            
+            // If no header detected, rewind and process first row as data
+            if (!$has_header) {
+                rewind($handle);
+            }
+            
+            while(($row = fgetcsv($handle, 1000, ",")) !== FALSE) {
+                $row_number++;
+                if(empty($row[0])) continue; 
+                
+                // Remove UTF-8 BOM if present in first column
+                $row[0] = str_replace("\xEF\xBB\xBF", '', $row[0]);
+                
+                $name = mysqli_real_escape_string($conn, strtoupper(trim($row[0])));
+                $collegeid = mysqli_real_escape_string($conn, trim($row[1]));
+                $position = mysqli_real_escape_string($conn, trim($row[2]));
+                $no_tel = mysqli_real_escape_string($conn, trim($row[3]));
+                $email = mysqli_real_escape_string($conn, trim($row[4]));
+                $dept = mysqli_real_escape_string($conn, trim($row[6])); // Column 7 (index 6)
+                $status = mysqli_real_escape_string($conn, trim($row[7])) ?: 'Aktif'; // Column 8 (index 7)
+
+                $check = mysqli_query($conn, "SELECT * FROM pemohon WHERE pemohon_college_id = '$collegeid'");
+                if(mysqli_num_rows($check) > 0) { 
+                    $error_count++; 
+                    continue; 
+                }
+
+                $insert = mysqli_query($conn, "INSERT INTO pemohon (pemohon_name, pemohon_college_id, pemohon_position, pemohon_no_tel, pemohon_email, pemohon_dept, pemohon_status) 
+                VALUES ('$name', '$collegeid', '$position', '$no_tel', '$email', '$dept', '$status')");
+                
+                if($insert) {
+                    $success_count++;
+                } else {
+                    $error_count++;
+                    $errors[] = "Row $row_number: " . mysqli_error($conn);
+                }
+            }
+            fclose($handle);
+            
+            if($error_count > 0) {
+                $result_message = "Import completed: $success_count added, $error_count skipped/failed.";
+            } else {
+                $result_message = "Import successful: $success_count personnel added!";
+            }
+        }
+    }
+}
+?>
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Import Personnel | ePinjamICT</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <style>
+        :root { --cream-bg: #FDFCF7; --macos-glass: rgba(255, 255, 255, 0.65); --primary-blue: #1E3A8A; --excel-green: #217346; }
+        body { font-family: 'Plus Jakarta Sans', sans-serif; background-color: var(--cream-bg); color: #1F2937; overflow: hidden; height: 100vh; margin: 0; }
+        
+        /* Glass Effect */
+        .glass-panel { background: var(--macos-glass); backdrop-filter: blur(20px) saturate(180%); border-bottom: 1px solid rgba(0,0,0,0.05); }
+        
+        /* Card Design */
+        .form-card { background: white; border-radius: 24px; box-shadow: 0 10px 40px -10px rgba(0, 0, 0, 0.04); border: 1px solid rgba(0,0,0,0.02); }
+        
+        /* Table Style */
+        .excel-table { font-size: 10px; border-collapse: collapse; width: 100%; }
+        .excel-table th { background: #217346; color: white; padding: 6px 10px; border: 1px solid #1a5c37; text-transform: uppercase; }
+        .excel-table td { padding: 6px 10px; border: 1px solid #eee; background: white; color: #666; }
+        
+        /* Upload Area */
+        .upload-zone { border: 2px dashed #e2e8f0; border-radius: 20px; padding: 30px; text-align: center; transition: all 0.2s ease; cursor: pointer; }
+        .upload-zone:hover { border-color: #217346; background: #f0fdf4; }
+        
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        
+        #loadingOverlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.6); backdrop-filter: blur(4px); z-index: 9999; align-items: center; justify-content: center; }
+        .spinner { width: 40px; height: 40px; border: 4px solid #f3f4f6; border-top: 4px solid #217346; border-radius: 50%; animation: spin 1s linear infinite; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+    </style>
+</head>
+
+<body class="flex overflow-hidden">
+
+
+    <div id="loadingOverlay">
+        <div class="text-center">
+            <div class="spinner mx-auto mb-4"></div>
+            <p class="text-white text-xs font-bold uppercase tracking-widest">Processing Data...</p>
+        </div>
+    </div>
+
+    <main class="flex-1 flex flex-col min-w-0 overflow-hidden">
+        
+        <header class="h-16 glass-panel flex items-center justify-between px-8 shrink-0">
+            <div class="flex items-center gap-3">
+                <a href="pemohon.php" class="text-gray-400 hover:text-blue-900 transition-all">
+                    <i class="fa-solid fa-circle-arrow-left text-lg"></i>
+                </a>
+                <div class="flex items-center gap-2">
+                    <span class="text-[10px] uppercase tracking-widest font-black text-blue-900/40">Personnel</span>
+                    <i class="fa-solid fa-chevron-right text-[8px] text-gray-300"></i>
+                    <h1 class="text-[11px] font-bold text-gray-500 italic">Bulk Import</h1>
+                </div>
+            </div>
+
+            <div class="flex items-center gap-4">
+                <div class="text-right">
+                    <p class="text-[11px] font-black text-blue-900 leading-none"><?php echo $user_row['name']; ?></p>
+                    <p class="text-[9px] font-bold text-amber-500 uppercase italic tracking-tighter">BP-ICT-2026</p>
+                </div>
+                <img src="<?php echo $user_row['adminthumbnails']; ?>" class="w-8 h-8 rounded-lg object-cover ring-2 ring-white shadow-sm">
+            </div>
+        </header>
+
+        <div class="flex-1 p-8 overflow-y-auto no-scrollbar">
+            <div class="max-w-4xl mx-auto">
+                
+                <?php if(isset($result_message)): ?>
+                <div class="mb-6 p-3 <?php echo $error_count > 0 ? 'bg-amber-50 border-amber-500 text-amber-900' : 'bg-emerald-50 border-emerald-500 text-emerald-900'; ?> border-l-4 rounded-xl text-xs font-bold">
+                    <i class="fa-solid <?php echo $error_count > 0 ? 'fa-triangle-exclamation' : 'fa-circle-check'; ?> mr-2"></i>
+                    <?php echo $result_message; ?>
+                </div>
+                <?php endif; ?>
+
+                <div class="form-card p-8 border-l-[6px] border-[#217346] mb-6">
+                    <div class="flex items-center justify-between mb-8 pb-4 border-b border-gray-50">
+                        <div class="flex items-center gap-3">
+                            <div class="w-10 h-10 bg-green-50 text-green-600 rounded-xl flex items-center justify-center">
+                                <i class="fa-solid fa-file-csv text-lg"></i>
+                            </div>
+                            <div>
+                                <h2 class="text-lg font-black text-blue-900 uppercase italic leading-none">Import CSV</h2>
+                                <p class="text-[10px] text-gray-400 font-bold uppercase tracking-widest">Update directory in bulk</p>
+                            </div>
+                        </div>
+                        <button type="button" class="px-4 py-2 bg-amber-500 text-white rounded-lg font-bold text-[9px] uppercase tracking-widest hover:bg-amber-600 transition-all shadow-md" onclick="document.getElementById('templateModal').style.display='flex'">
+                            <i class="fa-solid fa-book mr-1"></i> Template Guide
+                        </button>
+                    </div>
+
+                    <form method="post" enctype="multipart/form-data" id="importForm">
+                        <div class="upload-zone" onclick="document.getElementById('csvFile').click()">
+                            <i class="fa-solid fa-cloud-arrow-up text-4xl text-gray-200 mb-3"></i>
+                            <h3 class="text-sm font-bold text-gray-600 mb-1">Click to Upload CSV</h3>
+                            <p class="text-[10px] text-gray-400 italic">Drag and drop file here</p>
+                            <input type="file" name="csvFile" id="csvFile" accept=".csv" class="hidden" required>
+                        </div>
+                        <p id="fileNameDisplay" class="text-[11px] font-bold text-green-600 mt-3 text-center"></p>
+
+                        <div class="mt-6 flex gap-2">
+                            <button type="submit" name="import_csv" class="flex-1 bg-blue-900 text-white px-8 py-3 rounded-xl font-black text-[10px] uppercase tracking-widest shadow-lg hover:bg-green-700 transition-all">
+                                Mula Import Data
+                            </button>
+                            <a href="pemohon.php" class="px-6 py-3 bg-gray-100 text-gray-500 rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-gray-200 transition-all flex items-center justify-center">
+                                Batal
+                            </a>
+                        </div>
+                    </form>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4 opacity-70">
+                    <div class="bg-white p-4 rounded-2xl border border-gray-100 text-center">
+                        <div class="text-blue-900 font-black text-xs mb-1 uppercase tracking-tighter">1. Format</div>
+                        <p class="text-[9px] text-gray-400 font-bold uppercase">Ikut Template CSV</p>
+                    </div>
+                    <div class="bg-white p-4 rounded-2xl border border-gray-100 text-center">
+                        <div class="text-amber-500 font-black text-xs mb-1 uppercase tracking-tighter">2. Data</div>
+                        <p class="text-[9px] text-gray-400 font-bold uppercase">ID Tidak Boleh Duplicate</p>
+                    </div>
+                    <div class="bg-white p-4 rounded-2xl border border-gray-100 text-center">
+                        <div class="text-emerald-600 font-black text-xs mb-1 uppercase tracking-tighter">3. Upload</div>
+                        <p class="text-[9px] text-gray-400 font-bold uppercase">Sync Secara Automatik</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <div id="templateModal" class="hidden fixed inset-0 bg-black/40 z-50 items-center justify-center backdrop-blur-sm">
+        <div class="bg-white rounded-[32px] max-w-4xl w-full mx-4 overflow-hidden shadow-2xl">
+            <div class="bg-[#217346] text-white p-5 flex items-center justify-between">
+                <h3 class="text-sm font-black uppercase tracking-widest italic">Personnel CSV Structure</h3>
+                <button onclick="document.getElementById('templateModal').style.display='none'" class="hover:rotate-90 transition-all"><i class="fa-solid fa-xmark text-xl"></i></button>
+            </div>
+            <div class="p-8">
+                <div class="overflow-x-auto mb-6 rounded-xl border border-gray-100">
+                    <table class="excel-table">
+                        <thead>
+                            <tr><th></th><th>A</th><th>B</th><th>C</th><th>D</th><th>E</th><th>F</th><th>G</th><th>H</th></tr>
+                        </thead>
+                        <tbody>
+                            <tr class="font-bold text-[#217346] bg-green-50/50">
+                                <td class="text-center font-bold bg-gray-50">1</td><td>Name</td><td>ID</td><td>Position</td><td>Tel</td><td>Email</td><td>Password</td><td>Dept</td><td>Status</td>
+                            </tr>
+                            <tr>
+                                <td class="text-center font-bold bg-gray-50">2</td><td>DANISH</td><td>BP2021</td><td>PELAJAR</td><td>0111234567</td><td>d@kptm.edu.my</td><td></td><td>ICT</td><td>AKTIF</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+                <div class="bg-blue-50 border-l-4 border-blue-500 p-4 rounded-lg mb-4">
+                    <p class="text-[10px] font-bold text-blue-900 mb-2">📋 COLUMN ORDER:</p>
+                    <p class="text-[9px] text-blue-800 font-mono">A=Name | B=ID | C=Position | D=Tel | E=Email | F=Password | G=Dept | H=Status</p>
+                    <p class="text-[9px] text-blue-600 mt-2 italic">⚠️ Column F (Password) can be empty - leave blank for CSV imports</p>
+                </div>
+                <div class="flex justify-between items-center">
+                    <a href="generate_template_pemohon.php" class="text-blue-600 font-bold hover:underline text-[10px] italic underline decoration-blue-200 uppercase tracking-widest">Download Blank Template</a>
+                    <button onclick="document.getElementById('templateModal').style.display='none'" class="px-8 py-2.5 bg-blue-900 text-white rounded-lg font-bold text-[10px] uppercase tracking-widest">Faham</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        document.getElementById('csvFile').onchange = function() {
+            if(this.files[0]) document.getElementById('fileNameDisplay').innerText = "✓ Selected: " + this.files[0].name;
+        };
+        document.getElementById('importForm').onsubmit = function() {
+            document.getElementById('loadingOverlay').style.display = 'flex';
+        };
+    </script>
+</body>
+</html>

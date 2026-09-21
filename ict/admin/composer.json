@@ -1,0 +1,11 @@
+{
+    // for the latest minor version - recommended
+    "require": {
+        "setasign/fpdi": "^2.6"
+    }
+    
+    // or by exact version constraints
+    "require": {
+        "setasign/fpdi": "2.6.2"
+    }
+}

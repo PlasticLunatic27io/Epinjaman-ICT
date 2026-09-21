@@ -1,0 +1,12 @@
+ePinjamICT
+
+Folder name : ICT
+Database name : ICT
+Develop using php in xampp.
+Landing page : localhost/ict/login_form.php  (username : admin , password : admin )
+
+MySQL port : 3308 (due to several server setup in my pc)
+Specify in the project at two files:
+		dbcon.php 
+		admin/dbcon.php 
+

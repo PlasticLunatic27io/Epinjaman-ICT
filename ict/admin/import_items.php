@@ -1,0 +1,550 @@
+<?php 
+require_once __DIR__ . "/../dbcon.php"; 
+$conn = dbcon(); 
+session_start();
+require_once __DIR__ . '/admin_auth_guard.php';
+$activeAdminAccount = adminRequireActiveAccount($conn ?? null);
+
+if (!isset($_SESSION['id']) || (trim($_SESSION['id']) == '')) {
+    header("location:index.php");
+    exit();
+}
+$session_id = $_SESSION['id'];
+
+$query_user = mysqli_query($conn, "SELECT * FROM user WHERE user_id = '$session_id'") or die(mysqli_error($conn));
+$user_row = mysqli_fetch_array($query_user);
+
+// Set current page for sidebar
+$current_page = 'item';
+
+// Process CSV Upload (Simple, no library needed!)
+if(isset($_POST['import_csv'])) {
+    $file = $_FILES['csvFile']['tmp_name'];
+    
+    if($file && file_exists($file)) {
+        $success_count = 0;
+        $error_count = 0;
+        $errors = [];
+        
+        // Open CSV file
+        if (($handle = fopen($file, "r")) !== FALSE) {
+            $row_number = 0;
+            
+            while (($data = fgetcsv($handle, 1000, ",")) !== FALSE) {
+                $row_number++;
+                
+                // Skip header row
+                if($row_number == 1) continue;
+                
+                // Skip empty rows
+                if(empty($data[0]) && empty($data[1])) continue;
+                
+                // Get data from CSV columns
+                $item_name = mysqli_real_escape_string($conn, strtoupper(trim($data[0])));
+                $item_tag = mysqli_real_escape_string($conn, trim($data[1]));
+                $item_category = mysqli_real_escape_string($conn, strtoupper(trim($data[2])));
+                $brand = mysqli_real_escape_string($conn, strtoupper(trim($data[3])));
+                $model = mysqli_real_escape_string($conn, strtoupper(trim($data[4])));
+                $item_siri = mysqli_real_escape_string($conn, trim($data[5] ?? ''));
+                $item_quantity = intval($data[6] ?? 1);
+                $item_status = mysqli_real_escape_string($conn, trim($data[7] ?? 'Available'));
+                $item_description = mysqli_real_escape_string($conn, trim($data[8] ?? ''));
+                
+                // Validate required fields
+                if(empty($item_name) || empty($item_tag) || empty($item_category)) {
+                    $errors[] = "Row $row_number: Missing required fields (item_name, item_tag, or category)";
+                    $error_count++;
+                    continue;
+                }
+                
+                // Check if tag already exists
+                $check = mysqli_query($conn, "SELECT * FROM item WHERE item_tag = '$item_tag'");
+                if(mysqli_num_rows($check) > 0) {
+                    $errors[] = "Row $row_number: Tag '$item_tag' already exists in database";
+                    $error_count++;
+                    continue;
+                }
+                
+                // Insert item
+                $insert = mysqli_query($conn, "INSERT INTO item (item_name, item_tag, item_category, brand, model, item_siri, item_quantity, item_status, item_description) 
+                VALUES('$item_name', '$item_tag', '$item_category', '$brand', '$model', '$item_siri', '$item_quantity', '$item_status', '$item_description')");
+                
+                if($insert) {
+                    $success_count++;
+                } else {
+                    $errors[] = "Row $row_number: Database error - " . mysqli_error($conn);
+                    $error_count++;
+                }
+            }
+            fclose($handle);
+            
+            $result_message = "Import completed: $success_count items added successfully.";
+            if($error_count > 0) {
+                $result_message .= " $error_count items failed.";
+            }
+        } else {
+            $result_message = "Error: Unable to open CSV file";
+        }
+    } else {
+        $result_message = "Error: No file uploaded";
+    }
+}
+?>
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Import Items from CSV | ePinjamICT</title>
+    
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <style>
+        :root {
+            --cream-bg: #FDFCF7;
+            --macos-glass: rgba(255, 255, 255, 0.65);
+            --primary-blue: #1E3A8A;
+            --excel-green: #217346;
+        }
+
+        body {
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            background-color: var(--cream-bg);
+            background-image: radial-gradient(at 0% 0%, rgba(30, 58, 138, 0.03) 0px, transparent 40%);
+            color: #1F2937;
+            overflow: hidden;
+            height: 100vh;
+        }
+
+        .glass-panel {
+            background: var(--macos-glass);
+            backdrop-filter: blur(20px) saturate(180%);
+            border: 1px solid rgba(255, 255, 255, 0.7);
+        }
+
+        .form-card {
+            background: white;
+            border-radius: 30px;
+            box-shadow: 0 10px 40px -10px rgba(0, 0, 0, 0.05);
+            border: 1px solid rgba(0,0,0,0.02);
+        }
+
+        .sidebar-item {
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            border-radius: 12px;
+            font-size: 13px;
+        }
+
+        .sidebar-item:hover {
+            background: rgba(30, 58, 138, 0.06);
+            transform: translateX(4px);
+        }
+
+        .sidebar-active {
+            background: white !important;
+            box-shadow: 0 4px 20px -5px rgba(0,0,0,0.05);
+            color: #1E3A8A !important;
+            font-weight: 800;
+        }
+
+        .excel-table {
+            font-size: 11px;
+            border-collapse: collapse;
+        }
+
+        .excel-table th {
+            background: #217346;
+            color: white;
+            padding: 8px 12px;
+            font-weight: 700;
+            border: 1px solid #1a5c37;
+        }
+
+        .excel-table td {
+            padding: 8px 12px;
+            border: 1px solid #ddd;
+            background: white;
+        }
+
+        .excel-header-row td {
+            background: #e7f5ec !important;
+            font-weight: 700;
+            color: #217346;
+        }
+
+        .upload-zone {
+            border: 3px dashed #cbd5e1;
+            border-radius: 20px;
+            padding: 40px;
+            text-align: center;
+            transition: all 0.3s ease;
+            cursor: pointer;
+        }
+
+        .upload-zone:hover {
+            border-color: #217346;
+            background: #f0fdf4;
+        }
+
+        .upload-zone.dragover {
+            border-color: #217346;
+            background: #dcfce7;
+        }
+
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        html { font-size: 14px; }
+
+        #loadingOverlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.7);
+            z-index: 9999;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .spinner {
+            width: 50px;
+            height: 50px;
+            border: 5px solid #f3f4f6;
+            border-top: 5px solid #217346;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body class="flex">
+
+    <?php include('sidebar_component.php'); ?>
+
+    <!-- Loading Overlay -->
+    <div id="loadingOverlay">
+        <div class="text-center">
+            <div class="spinner mx-auto mb-4"></div>
+            <p class="text-white font-bold">Processing CSV File...</p>
+        </div>
+    </div>
+
+    <main class="flex-1 flex flex-col overflow-hidden">
+        
+        <!-- Header -->
+        <header class="h-20 glass-panel border-b border-gray-200 flex items-center justify-between px-10">
+            <div class="flex items-center gap-3">
+                <a href="item.php" class="text-gray-400 hover:text-blue-900 transition-all">
+                    <i class="fa-solid fa-circle-arrow-left text-xl"></i>
+                </a>
+                <div class="flex items-center gap-2">
+                    <span class="text-xs uppercase tracking-widest font-black text-blue-900/40">Inventory</span>
+                    <i class="fa-solid fa-chevron-right text-[10px] text-gray-300"></i>
+                    <h1 class="text-xs font-bold text-gray-600 italic">Bulk Import from CSV</h1>
+                </div>
+            </div>
+
+            <div class="flex items-center gap-4">
+                <div class="text-right hidden sm:block">
+                    <p class="text-xs font-black text-blue-900 leading-none"><?php echo $user_row['name']; ?></p>
+                    <p class="text-[10px] font-bold text-amber-500 uppercase tracking-tighter italic">BP-ICT-2026</p>
+                </div>
+                <img src="<?php echo $user_row['adminthumbnails']; ?>" class="w-10 h-10 rounded-xl object-cover ring-2 ring-white shadow-md">
+            </div>
+        </header>
+
+        <!-- Main Content -->
+        <div class="flex-1 p-10 overflow-y-auto no-scrollbar">
+            
+            <div class="max-w-5xl mx-auto">
+                
+                <!-- Result Message -->
+                <?php if(isset($result_message)): ?>
+                <div class="mb-6 p-4 <?php echo $error_count > 0 ? 'bg-amber-50 border-amber-500' : 'bg-emerald-50 border-emerald-500'; ?> border-l-4 rounded-xl">
+                    <p class="font-bold <?php echo $error_count > 0 ? 'text-amber-900' : 'text-emerald-900'; ?>">
+                        <i class="fa-solid <?php echo $error_count > 0 ? 'fa-triangle-exclamation' : 'fa-circle-check'; ?> mr-2"></i>
+                        <?php echo $result_message; ?>
+                    </p>
+                    <?php if(!empty($errors)): ?>
+                        <div class="mt-3 text-sm text-red-600">
+                            <strong>Errors:</strong>
+                            <ul class="ml-4 mt-2 list-disc">
+                                <?php foreach(array_slice($errors, 0, 5) as $error): ?>
+                                    <li><?php echo $error; ?></li>
+                                <?php endforeach; ?>
+                                <?php if(count($errors) > 5): ?>
+                                    <li><em>... and <?php echo count($errors) - 5; ?> more errors</em></li>
+                                <?php endif; ?>
+                            </ul>
+                        </div>
+                    <?php endif; ?>
+                </div>
+                <?php endif; ?>
+
+                <!-- Upload Card -->
+                <div class="form-card p-10 border-l-[6px] border-[#217346] mb-8">
+                    
+                    <!-- Card Header -->
+                    <div class="flex items-center justify-between mb-10 pb-6 border-b border-gray-100">
+                        <div class="flex items-center gap-4">
+                            <div class="w-14 h-14 bg-green-50 text-green-600 rounded-2xl flex items-center justify-center">
+                                <i class="fa-solid fa-file-csv text-2xl"></i>
+                            </div>
+                            <div>
+                                <h2 class="text-2xl font-black text-blue-900 uppercase italic leading-none mb-1">Import Items from CSV</h2>
+                                <p class="text-xs text-gray-400 font-bold uppercase tracking-widest">Bulk Add Multiple Items (No Library Required!)</p>
+                            </div>
+                        </div>
+                        <button type="button" class="px-6 py-3 bg-amber-500 text-white rounded-xl font-bold text-xs uppercase hover:bg-amber-600 transition-all" onclick="document.getElementById('templateModal').classList.add('show'); document.getElementById('templateModal').style.display='block';">
+                            <i class="fa-solid fa-book mr-2"></i> View Template Guide
+                        </button>
+                    </div>
+
+                    <!-- Upload Form -->
+                    <form method="post" enctype="multipart/form-data" id="importForm">
+                        <div class="upload-zone" onclick="document.getElementById('csvFile').click()">
+                            <i class="fa-solid fa-cloud-arrow-up text-6xl text-gray-300 mb-4"></i>
+                            <h3 class="text-xl font-bold text-gray-700 mb-2">Click to Upload CSV File</h3>
+                            <p class="text-sm text-gray-500 mb-4">or drag and drop file here</p>
+                            <p class="text-xs text-gray-400">Supported: .csv (Comma Separated Values)</p>
+                            <input type="file" name="csvFile" id="csvFile" accept=".csv" class="hidden" required>
+                        </div>
+
+                        <p id="fileNameDisplay" class="text-sm font-bold text-green-600 mt-4 text-center"></p>
+
+                        <div class="mt-8 flex gap-3">
+                            <button type="submit" name="import_csv" class="flex-1 bg-[#217346] text-white px-10 py-4 rounded-2xl font-black text-xs uppercase tracking-[0.2em] shadow-2xl shadow-green-900/30 hover:bg-green-700 hover:scale-105 transition-all">
+                                <i class="fa-solid fa-file-import mr-2"></i>
+                                Import CSV Data
+                            </button>
+                            <a href="item.php" class="px-8 py-4 bg-gray-100 text-gray-600 rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-gray-200 transition-all flex items-center justify-center">
+                                <i class="fa-solid fa-xmark mr-2"></i>
+                                Cancel
+                            </a>
+                        </div>
+                    </form>
+                </div>
+
+                <!-- Instructions -->
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    <div class="bg-blue-50 p-6 rounded-2xl border border-blue-100">
+                        <div class="w-12 h-12 bg-blue-900 text-white rounded-xl flex items-center justify-center mb-4">
+                            <i class="fa-solid fa-1"></i>
+                        </div>
+                        <h3 class="font-black text-blue-900 mb-2">Prepare CSV in Excel</h3>
+                        <p class="text-sm text-gray-600">Create your data in Excel, then save as CSV format</p>
+                    </div>
+
+                    <div class="bg-amber-50 p-6 rounded-2xl border border-amber-100">
+                        <div class="w-12 h-12 bg-amber-500 text-white rounded-xl flex items-center justify-center mb-4">
+                            <i class="fa-solid fa-2"></i>
+                        </div>
+                        <h3 class="font-black text-amber-900 mb-2">Upload CSV File</h3>
+                        <p class="text-sm text-gray-600">Click or drag your CSV file to upload</p>
+                    </div>
+
+                    <div class="bg-emerald-50 p-6 rounded-2xl border border-emerald-100">
+                        <div class="w-12 h-12 bg-emerald-600 text-white rounded-xl flex items-center justify-center mb-4">
+                            <i class="fa-solid fa-3"></i>
+                        </div>
+                        <h3 class="font-black text-emerald-900 mb-2">Import Complete</h3>
+                        <p class="text-sm text-gray-600">Items will be added to inventory automatically</p>
+                    </div>
+                </div>
+
+                <!-- Footer -->
+                <footer class="mt-12 py-8 border-t border-gray-200/50 flex justify-between items-center opacity-40">
+                    <p class="text-[10px] font-black text-gray-500 uppercase tracking-[0.4em]">KPTM BP • 2026</p>
+                    <p class="text-[10px] font-black text-blue-900 uppercase">AHA Studio</p>
+                </footer>
+
+            </div>
+        </div>
+    </main>
+
+    <!-- Template Modal -->
+    <div id="templateModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 items-center justify-center" style="display: none;">
+        <div class="bg-white rounded-3xl max-w-6xl w-full mx-4 max-h-[90vh] overflow-y-auto">
+            <div class="bg-[#217346] text-white p-6 rounded-t-3xl flex items-center justify-between">
+                <h3 class="text-xl font-black">
+                    <i class="fa-solid fa-file-csv mr-2"></i>
+                    CSV Template Guide (Excel Compatible)
+                </h3>
+                <button onclick="document.getElementById('templateModal').style.display='none'" class="text-white hover:text-gray-200">
+                    <i class="fa-solid fa-xmark text-2xl"></i>
+                </button>
+            </div>
+
+            <div class="p-8">
+                <div class="bg-blue-50 p-4 rounded-xl mb-6 border-l-4 border-blue-600">
+                    <p class="text-sm font-bold text-blue-900">
+                        <i class="fa-solid fa-circle-info mr-2"></i>
+                        Create in Excel, then <strong>Save As → CSV (Comma delimited)</strong>. Row 1 = Header, Data starts Row 2.
+                    </p>
+                </div>
+
+                <!-- Excel Preview Table -->
+                <div class="overflow-x-auto mb-6 rounded-xl shadow-lg">
+                    <table class="excel-table w-full">
+                        <thead>
+                            <tr>
+                                <th></th>
+                                <th>A</th><th>B</th><th>C</th><th>D</th><th>E</th><th>F</th><th>G</th><th>H</th><th>I</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr class="excel-header-row">
+                                <th style="background: #f3f4f6; color: #6b7280;">1</th>
+                                <td>item_name</td>
+                                <td>item_tag</td>
+                                <td>item_category</td>
+                                <td>brand</td>
+                                <td>model</td>
+                                <td>item_siri</td>
+                                <td>item_quantity</td>
+                                <td>item_status</td>
+                                <td>item_description</td>
+                            </tr>
+                            <tr>
+                                <th style="background: #f3f4f6; color: #6b7280;">2</th>
+                                <td style="font-style: italic; color: #6b7280;">LAPTOP HP</td>
+                                <td style="font-style: italic; color: #6b7280;">ICT-LP-001</td>
+                                <td style="font-style: italic; color: #6b7280;">LAPTOP</td>
+                                <td style="font-style: italic; color: #6b7280;">HP</td>
+                                <td style="font-style: italic; color: #6b7280;">ELITEBOOK 840</td>
+                                <td style="font-style: italic; color: #6b7280;">SN123456789</td>
+                                <td style="font-style: italic; color: #6b7280;">1</td>
+                                <td style="font-style: italic; color: #6b7280;">Available</td>
+                                <td style="font-style: italic; color: #6b7280;">i5 Gen 8, 8GB RAM</td>
+                            </tr>
+                            <tr>
+                                <th style="background: #f3f4f6; color: #6b7280;">3</th>
+                                <td style="font-style: italic; color: #6b7280;">PROJECTOR EPSON</td>
+                                <td style="font-style: italic; color: #6b7280;">ICT-PJ-002</td>
+                                <td style="font-style: italic; color: #6b7280;">PROJECTOR</td>
+                                <td style="font-style: italic; color: #6b7280;">EPSON</td>
+                                <td style="font-style: italic; color: #6b7280;">EB-X41</td>
+                                <td style="font-style: italic; color: #6b7280;">...</td>
+                                <td style="font-style: italic; color: #6b7280;">1</td>
+                                <td style="font-style: italic; color: #6b7280;">Available</td>
+                                <td style="font-style: italic; color: #6b7280;">3600 lumens</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- Column Descriptions -->
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div>
+                        <h4 class="font-black text-blue-900 mb-4 text-sm uppercase tracking-wider">Required Columns:</h4>
+                        <ul class="space-y-2 text-sm">
+                            <li class="flex items-start gap-2">
+                                <span class="font-bold text-green-600 min-w-[60px]">Column A:</span>
+                                <span><strong>item_name</strong> ✅ Required</span>
+                            </li>
+                            <li class="flex items-start gap-2">
+                                <span class="font-bold text-green-600 min-w-[60px]">Column B:</span>
+                                <span><strong>item_tag</strong> ✅ Required (Must be unique!)</span>
+                            </li>
+                            <li class="flex items-start gap-2">
+                                <span class="font-bold text-green-600 min-w-[60px]">Column C:</span>
+                                <span><strong>item_category</strong> ✅ Required</span>
+                            </li>
+                            <li class="flex items-start gap-2">
+                                <span class="font-bold text-green-600 min-w-[60px]">Column D:</span>
+                                <span><strong>brand</strong></span>
+                            </li>
+                            <li class="flex items-start gap-2">
+                                <span class="font-bold text-green-600 min-w-[60px]">Column E:</span>
+                                <span><strong>model</strong></span>
+                            </li>
+                        </ul>
+                    </div>
+
+                    <div>
+                        <h4 class="font-black text-blue-900 mb-4 text-sm uppercase tracking-wider">Optional Columns:</h4>
+                        <ul class="space-y-2 text-sm">
+                            <li class="flex items-start gap-2">
+                                <span class="font-bold text-green-600 min-w-[60px]">Column F:</span>
+                                <span><strong>item_siri</strong> - Serial number</span>
+                            </li>
+                            <li class="flex items-start gap-2">
+                                <span class="font-bold text-green-600 min-w-[60px]">Column G:</span>
+                                <span><strong>item_quantity</strong> - Default: 1</span>
+                            </li>
+                            <li class="flex items-start gap-2">
+                                <span class="font-bold text-green-600 min-w-[60px]">Column H:</span>
+                                <span><strong>item_status</strong> - Available/Borrowed/Maintenance/Damage</span>
+                            </li>
+                            <li class="flex items-start gap-2">
+                                <span class="font-bold text-green-600 min-w-[60px]">Column I:</span>
+                                <span><strong>item_description</strong> - Additional notes</span>
+                            </li>
+                        </ul>
+                    </div>
+                </div>
+
+                <div class="mt-6 bg-amber-50 p-4 rounded-xl border-l-4 border-amber-500">
+                    <p class="text-sm font-bold text-amber-900 mb-2">
+                        <i class="fa-solid fa-lightbulb mr-2"></i>
+                        <strong>How to Save as CSV in Excel:</strong>
+                    </p>
+                    <ol class="text-sm text-amber-800 ml-6 list-decimal space-y-1">
+                        <li>Open your Excel file</li>
+                        <li>Click <strong>File → Save As</strong></li>
+                        <li>Select <strong>CSV (Comma delimited) (*.csv)</strong></li>
+                        <li>Click Save</li>
+                    </ol>
+                </div>
+            </div>
+
+            <div class="p-6 bg-gray-50 rounded-b-3xl flex justify-end">
+                <button onclick="document.getElementById('templateModal').style.display='none'" class="px-8 py-3 bg-blue-900 text-white rounded-xl font-bold text-sm hover:bg-blue-800 transition-all">
+                    Got It!
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // File upload display
+        document.getElementById('csvFile').onchange = function() {
+            if(this.files[0]) {
+                document.getElementById('fileNameDisplay').innerText = "✓ Selected: " + this.files[0].name;
+            }
+        };
+
+        // Show loading on submit
+        document.getElementById('importForm').onsubmit = function() {
+            document.getElementById('loadingOverlay').style.display = 'flex';
+        };
+
+        // Drag and drop
+        const uploadZone = document.querySelector('.upload-zone');
+        uploadZone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            uploadZone.classList.add('dragover');
+        });
+        uploadZone.addEventListener('dragleave', () => {
+            uploadZone.classList.remove('dragover');
+        });
+        uploadZone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            uploadZone.classList.remove('dragover');
+            const files = e.dataTransfer.files;
+            if(files.length) {
+                document.getElementById('csvFile').files = files;
+                document.getElementById('fileNameDisplay').innerText = "✓ Selected: " + files[0].name;
+            }
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,263 @@
+<?php
+require_once __DIR__ . "/dbcon.php";
+$conn = dbcon();
+?>
+<?php 
+
+include('session.php'); 
+
+$session_id = $_SESSION['id'];
+
+$form_active = false;
+$search_id = "";
+$applicant = null;
+$departments = [
+    'PEJABAT PENGARAH','BAHAGIAN OPERASI','SEKSYEN PENTADBIRAN','PUSAT SUMBER',
+    'SEKSYEN SUMBER MANUSIA','SEKSYEN TEKNOLOGI MAKLUMAT & KOMUNIKASI','BAHAGIAN AKADEMIK',
+    'JABATAN SAINS KOMPUTER & MATEMATIK','JABATAN PENGAJIAN UMUM','BAHAGIAN KEWANGAN',
+    'SEKSYEN REKOD PELAJAR','SEKSYEN PENGAMBILAN PELAJAR','JABATAN GRAFIK & MULTIMEDIA',
+    'BAHAGIAN HAL EHWAL PELAJAR'
+];
+$courses = [
+    'DIPLOMA IN COMPUTER SCIENCE',
+    'DIPLOMA IN HUMAN RESOURCE MANAGEMENT',
+    'DIPLOMA IN COMPUTER GRAPHIC DESIGN',
+    'DIPLOMA IN INFORMATION TECHNOLOGY'
+];
+
+// The applicant is always taken from the authenticated session.
+$account_query = $conn->prepare("SELECT * FROM pemohon WHERE pemohon_id = ? LIMIT 1");
+$account_query->bind_param('i', $session_id);
+$account_query->execute();
+$applicant = $account_query->get_result()->fetch_assoc();
+
+if ($applicant) {
+    $search_id = (string)$applicant['pemohon_college_id'];
+    $form_active = true;
+}
+$is_student = $applicant && strtoupper(trim((string)$applicant['pemohon_status'])) === 'PELAJAR';
+?>
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mohon Aset | ePinjamICT</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <style>
+        html { font-size: 13px; } /* Global scaling biar fit 100% */
+        body { font-family: 'Plus Jakarta Sans', sans-serif; background: #FDFCF7; color: #1F2937; height: 100vh; overflow: hidden; }
+        .glass-card { background: rgba(255, 255, 255, 0.8); backdrop-filter: blur(12px); border: 1px solid rgba(255, 255, 255, 0.5); }
+        .input-aesthetic { background: white; border: 1px solid #E5E7EB; border-radius: 0.75rem; padding: 0.6rem 1rem; transition: all 0.3s ease; width: 100%; }
+        .input-aesthetic:focus { border-color: #F59E0B; box-shadow: 0 0 0 4px rgba(245, 158, 11, 0.1); outline: none; }
+        select.input-aesthetic {
+            appearance: none;
+            -webkit-appearance: none;
+            padding-right: 2.75rem;
+            background-color: white;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='20' height='20' viewBox='0 0 20 20' fill='none'%3E%3Cpath d='M5 7.5L10 12.5L15 7.5' stroke='%231E3A8A' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+            background-repeat: no-repeat;
+            background-position: right 0.9rem center;
+            background-size: 1.15rem;
+            cursor: pointer;
+        }
+        .btn-primary { background: #1E3A8A; color: white; border-radius: 1rem; font-weight: 800; transition: all 0.3s ease; width: 100%; padding: 1rem; }
+        .btn-primary:hover { background: #F59E0B; transform: translateY(-2px); shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1); }
+        .disabled-section { opacity: 0.3; pointer-events: none; filter: grayscale(1); }
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+    </style>
+</head>
+
+<body class="flex no-scrollbar">
+
+    <?php include('sidebar.php'); ?>
+
+    <main class="flex-1 p-6 lg:p-8 overflow-y-auto no-scrollbar">
+        
+        <header class="mb-6">
+            <h1 class="text-2xl font-black text-blue-900 tracking-tight italic">Permohonan Baru.</h1>
+            <p class="text-gray-400 text-xs font-medium">Lengkapkan borang di bawah untuk proses pinjaman.</p>
+        </header>
+
+        <form method="post">
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
+                
+                <div class="space-y-6">
+                    <div class="glass-card rounded-[24px] p-6 shadow-sm">
+                        <div class="flex items-center gap-3 mb-6">
+                            <div class="w-1 h-5 bg-amber-500 rounded-full"></div>
+                            <h2 class="text-xs font-bold text-blue-900 uppercase tracking-widest">Peringkat 1: Pengesahan</h2>
+                        </div>
+                        <div class="space-y-4">
+                            <div class="p-4 bg-blue-50/70 rounded-2xl border border-blue-100">
+                                <p class="text-[9px] font-black text-gray-400 uppercase tracking-widest">Akaun Pemohon</p>
+                                <p class="mt-2 text-sm font-extrabold text-blue-900"><?php echo htmlspecialchars($applicant['pemohon_name'] ?? '', ENT_QUOTES, 'UTF-8'); ?></p>
+                                <p class="text-xs font-semibold text-blue-700"><?php echo htmlspecialchars($search_id, ENT_QUOTES, 'UTF-8'); ?></p>
+                            </div>
+                            <div class="p-4 bg-blue-50/50 rounded-2xl border border-blue-100/50">
+                                <p class="text-[10px] text-blue-800 leading-relaxed font-medium">
+                                    <i class="fa-solid fa-circle-info mr-1"></i> Nama dan ID diambil daripada akaun yang sedang log masuk. Hubungi JTM jika maklumat akaun perlu dikemas kini.
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                    <br>
+                    <br>
+                    <br>
+                    <br>
+                    <br>
+                    <br>
+                    <br>
+                    <br>
+                    <div class="hidden lg:block p-8 bg-gradient-to-br from-blue-900 to-blue-700 rounded-[32px] text-white shadow-xl relative overflow-hidden">
+                        <i class="fa-solid fa-laptop-code absolute -bottom-4 -right-4 text-9xl opacity-10"></i>
+                        <h3 class="text-lg font-bold mb-2">Prosedur Digital</h3>
+                        <p class="text-blue-100 text-xs leading-relaxed opacity-80">
+                            Semua permohonan tertakluk kepada kelulusan Unit ICT. Sila hantar permohonan sekurang-kurangnya 3 hari sebelum tarikh penggunaan.
+                        </p>
+                    </div>
+                </div>
+
+                <div class="<?php echo $form_active ? '' : 'disabled-section'; ?> glass-card rounded-[32px] p-8 shadow-md transition-all duration-500 border-2 border-transparent <?php echo $form_active ? 'border-amber-400/30' : ''; ?>">
+                    <div class="flex items-center gap-3 mb-6">
+                        <div class="w-1 h-5 bg-blue-900 rounded-full"></div>
+                        <h2 class="text-xs font-bold text-blue-900 uppercase tracking-widest">Peringkat 2: Butiran Aset</h2>
+                    </div>
+
+                    <div class="mb-6 p-5 bg-blue-50/60 rounded-2xl border border-blue-100">
+                        <h3 class="text-[10px] font-black text-blue-900 uppercase tracking-widest mb-4">Butiran Pemohon untuk Rekod Audit</h3>
+                        <div class="grid grid-cols-2 gap-4">
+                            <div class="col-span-2 space-y-1"><label class="text-[9px] font-black text-gray-400 uppercase tracking-widest ml-1">Nama Penuh</label><input type="text" value="<?php echo htmlspecialchars($applicant['pemohon_name'] ?? '', ENT_QUOTES, 'UTF-8'); ?>" class="input-aesthetic text-xs bg-gray-100 cursor-not-allowed" readonly></div>
+                            <div class="space-y-1"><label class="text-[9px] font-black text-gray-400 uppercase tracking-widest ml-1">ID Staff / Pelajar</label><input type="text" value="<?php echo htmlspecialchars($search_id, ENT_QUOTES, 'UTF-8'); ?>" class="input-aesthetic text-xs bg-gray-100" readonly></div>
+                            <div class="space-y-1"><label class="text-[9px] font-black text-gray-400 uppercase tracking-widest ml-1">No. Telefon</label><input type="text" name="applicant_phone" maxlength="20" class="input-aesthetic text-xs" value="<?php echo htmlspecialchars($_POST['applicant_phone'] ?? ($applicant['pemohon_no_tel'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>" required><p class="text-[9px] text-gray-400 mt-1">Gunakan nombor telefon aktif. Anda boleh menggantikannya untuk permohonan ini sahaja.</p></div>
+                            <?php
+                                $selectedDepartment = $_POST['department'] ?? ($applicant['pemohon_dept'] ?? '');
+                                $affiliationOptions = $is_student ? $courses : $departments;
+                                $knownDepartment = in_array($selectedDepartment, $affiliationOptions, true);
+                                $affiliationLabel = $is_student ? 'Program Pengajian' : 'Jabatan / Bahagian / Seksyen';
+                            ?>
+                            <div class="col-span-2 space-y-1">
+                                <label class="text-[9px] font-black text-gray-400 uppercase tracking-widest ml-1"><?php echo $affiliationLabel; ?></label>
+                                <select id="department" name="department" class="input-aesthetic text-xs font-bold" required>
+                                    <option value="">-- Pilih <?php echo $affiliationLabel; ?> --</option>
+                                    <?php foreach($affiliationOptions as $option): ?>
+                                        <option value="<?php echo htmlspecialchars($option, ENT_QUOTES, 'UTF-8'); ?>" <?php echo $selectedDepartment===$option?'selected':''; ?>><?php echo htmlspecialchars($option, ENT_QUOTES, 'UTF-8'); ?></option>
+                                    <?php endforeach; ?>
+                                    <option value="OTHER" <?php echo (!$knownDepartment && $selectedDepartment!=='')?'selected':''; ?>>LAIN-LAIN</option>
+                                </select>
+                            </div>
+                            <div id="other-department-wrap" class="col-span-2 space-y-1">
+                                <label class="text-[9px] font-black text-gray-400 uppercase tracking-widest ml-1"><?php echo $is_student ? 'Nyatakan Program Pengajian Lain' : 'Nyatakan Jabatan / Bahagian / Seksyen Lain'; ?></label>
+                                <input id="other-department" type="text" name="department_other" maxlength="160" class="input-aesthetic text-xs" value="<?php echo htmlspecialchars(!$knownDepartment?$selectedDepartment:'', ENT_QUOTES, 'UTF-8'); ?>">
+                            </div>
+                        </div>
+                        <p class="text-[9px] text-blue-700 mt-3">Rekod audit akan memaparkan: <strong>ID / <?php echo $is_student ? 'PROGRAM PENGAJIAN' : 'JABATAN'; ?></strong>.</p>
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-4">
+                        <div class="space-y-1">
+                            <label class="text-[9px] font-black text-gray-400 uppercase tracking-widest ml-1">Jenis Tempahan</label>
+                            <select name="type" class="input-aesthetic appearance-none bg-white text-xs font-bold" required>
+                                <option value="">-- Pilih --</option>
+                                <option value="Dalaman">DALAMAN</option>
+                                <option value="Luaran">LUARAN</option>
+                            </select>
+                        </div>
+
+                        <div class="space-y-1">
+                            <label class="text-[9px] font-black text-gray-400 uppercase tracking-widest ml-1">Perlu Juruteknik?</label>
+                            <select name="technician" class="input-aesthetic appearance-none bg-white text-xs font-bold" required>
+                                <option value="">-- Pilih --</option>
+                                <option value="Ya">YA</option>
+                                <option value="Tidak">TIDAK</option>
+                            </select>
+                        </div>
+
+                        <div class="col-span-2 space-y-1">
+                            <label class="text-[9px] font-black text-gray-400 uppercase tracking-widest ml-1">Nama Aset & Model (Kuantiti)</label>
+                            <textarea name="borrow_item" rows="2" class="input-aesthetic text-xs font-medium" placeholder="Cth: Laptop (1), Projektor (1)" required></textarea>
+                        </div>
+
+                        <div class="col-span-2 space-y-1">
+                            <label class="text-[9px] font-black text-gray-400 uppercase tracking-widest ml-1">Tujuan Penggunaan</label>
+                            <input type="text" name="purpose" class="input-aesthetic text-xs" placeholder="Cth: Taklimat / Kelas / Bengkel" required>
+                        </div>
+
+                        <div class="space-y-1">
+                            <label class="text-[9px] font-black text-gray-400 uppercase tracking-widest ml-1">Tarikh & Masa Mula (DD-MM-YYYY)</label>
+                            <input type="datetime-local" name="start_date" class="input-aesthetic text-[11px]" required>
+                        </div>
+
+                        <div class="space-y-1">
+                            <label class="text-[9px] font-black text-gray-400 uppercase tracking-widest ml-1">Tarikh & Masa Tamat (DD-MM-YYYY)</label>
+                            <input type="datetime-local" name="end_date" class="input-aesthetic text-[11px]" required>
+                        </div>
+
+                        <div class="col-span-2 space-y-1">
+                            <label class="text-[9px] font-black text-gray-400 uppercase tracking-widest ml-1">Lokasi</label>
+                            <input type="text" name="location" class="input-aesthetic text-xs" placeholder="Cth: Dewan Al-Khawarizmi" required>
+                        </div>
+                    </div>
+
+                    <div class="mt-8">
+                        <button name="save" type="submit" class="btn-primary shadow-xl shadow-blue-900/20 flex items-center justify-center gap-3 uppercase text-[10px] tracking-widest">
+                            <i class="fa-solid fa-paper-plane animate-bounce"></i>
+                            Hantar Permohonan
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </form>
+
+        <?php
+        if (isset($_POST['save'])){
+            date_default_timezone_set('Asia/Kuala_Lumpur');    
+            if (!$applicant) {
+                exit("<script>alert('Akaun pemohon tidak dijumpai. Sila log masuk semula.');window.location='login_form.php';</script>");
+            }
+            $pemohon_college_id = (string)$applicant['pemohon_college_id'];
+            $applicant_name = trim((string)$applicant['pemohon_name']);
+            $applicant_phone = trim((string)($_POST['applicant_phone'] ?? ''));
+            $department_choice = trim((string)($_POST['department'] ?? ''));
+            $applicant_department = $department_choice === 'OTHER' ? trim((string)($_POST['department_other'] ?? '')) : $department_choice;
+            $invalid_student_course = $is_student && $department_choice !== 'OTHER' && !in_array($applicant_department, $courses, true);
+            if ($applicant_name === '' || mb_strlen($applicant_name) > 100 || $applicant_phone === '' || mb_strlen($applicant_phone) > 20 || $applicant_department === '' || mb_strlen($applicant_department) > 160 || $invalid_student_course) {
+                exit("<script>alert('Sila lengkapkan program pengajian atau jabatan dan nombor telefon.');history.back();</script>");
+            }
+            $borrow_item = mysqli_real_escape_string($conn, $_POST['borrow_item']);
+            $borrow_start_date = $_POST['start_date'];
+            $borrow_end_date = $_POST['end_date'];
+            $borrow_status = "Baru";
+            $borrow_type = $_POST['type'];  
+            $borrow_purpose = mysqli_real_escape_string($conn, $_POST['purpose']);
+            $borrow_location = mysqli_real_escape_string($conn, $_POST['location']);  
+            $borrow_technician = $_POST['technician'];
+            $request_date = date('Y-m-d H:i:s');
+
+            $insert = $conn->prepare("INSERT INTO borrowing (pemohon_college_id,applicant_name,applicant_department,applicant_phone,borrow_item,request_date,start_date,end_date,status,type,purpose,location,need_technician) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)");
+            $insert->bind_param('sssssssssssss',$pemohon_college_id,$applicant_name,$applicant_department,$applicant_phone,$borrow_item,$request_date,$borrow_start_date,$borrow_end_date,$borrow_status,$borrow_type,$borrow_purpose,$borrow_location,$borrow_technician);
+            $insert->execute();      
+            
+            echo "<script>
+                alert('Berjaya! Permohonan anda sedang diproses.');
+                window.location = 'dashboard.php';
+            </script>";
+        }
+        ?>
+
+        <footer class="mt-8 py-4 border-t border-gray-100 flex justify-between items-center opacity-50">
+            <p class="text-[8px] uppercase tracking-[0.4em] font-bold">KPTM BP • AHA 2026</p>
+        </footer>
+    </main>
+
+<script>
+const departmentSelect=document.getElementById('department');
+function toggleOtherDepartment(){const wrap=document.getElementById('other-department-wrap'),input=document.getElementById('other-department');if(!departmentSelect||!wrap||!input)return;const other=departmentSelect.value==='OTHER';wrap.hidden=!other;input.required=other;}
+departmentSelect?.addEventListener('change',toggleOtherDepartment);toggleOtherDepartment();
+</script>
+</body>
+</html>

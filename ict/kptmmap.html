@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width , initial-scale=1.0 ">
+
+        <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+        <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+        <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+        <link rel="manifest" href="json/manifest.json">
+
+
+        <style>
+        #map {
+            height: 400px;  
+            width: 100%;
+            border: 1px solid #ccc;
+        }
+        </style>
+
+
+    </head>
+    <body>
+
+        <h2>My location @KPTM Batu Pahat</h2>
+        <div id="map"></div>
+
+        <script>
+        $(function(){
+
+        let lat = 1.8548;
+        let lng = 102.9325;
+
+        let map = L.map('map').setView([lat, lng], 13);
+
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '© OpenStreetMap contributors'
+        }).addTo(map);
+
+        L.marker([lat, lng])
+            .addTo(map)
+            .bindPopup("KPTM Batu Pahat")
+            .openPopup();
+        });
+
+        //pwa
+        if ("serviceWorker" in navigator) {
+            navigator.serviceWorker.register("sw.js")
+                .then(() => console.log("Service Worker Registered"))
+                .catch(err => console.log("Service Worker Failed", err));
+        }
+        </script>
+
+    </body>
+</html>

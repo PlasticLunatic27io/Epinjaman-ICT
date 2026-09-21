@@ -1,0 +1,102 @@
+<?php
+// sidebar_component.php - Universal Sidebar Component
+// Usage: include this file in all pages
+// Set $current_page variable before including (e.g., $current_page = 'dashboard';)
+
+if (!isset($current_page)) {
+    $current_page = 'dashboard'; // default
+}
+?>
+
+<aside class="w-72 glass-panel h-screen flex flex-col p-6 z-50">
+    <!-- Logo Section -->
+    <div class="flex items-center gap-3 mb-10 px-2">
+        <div class="w-9 h-9 bg-blue-900 rounded-xl flex items-center justify-center shadow-lg transform rotate-3">
+            <i class="fa-solid fa-bolt text-white text-sm"></i>
+        </div>
+        <span class="text-xl font-black tracking-tighter text-blue-900 uppercase italic">
+            ePinjam<span class="text-amber-500">ICT</span>
+        </span>
+    </div>
+
+    <!-- Navigation Menu -->
+    <div class="flex-1 space-y-7 overflow-y-auto no-scrollbar pb-10">
+        
+        <!-- Dashboard -->
+        <div>
+            <nav class="space-y-1">
+                <a href="dashboard.php" class="sidebar-item <?php echo ($current_page == 'dashboard') ? 'sidebar-active' : ''; ?> flex items-center gap-3 p-3 text-gray-500 font-semibold hover:text-blue-900">
+                    <i class="fa-solid fa-grid-2 text-xs"></i> Dashboard
+                </a>
+            </nav>
+        </div>
+
+        <!-- Registered Files Section -->
+        <div>
+            <p class="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] mb-3 px-2">Registered Files</p>
+            <nav class="space-y-1">
+                <a href="item.php" class="sidebar-item <?php echo ($current_page == 'item') ? 'sidebar-active' : ''; ?> flex items-center gap-3 p-3 text-gray-500 font-semibold hover:text-blue-900">
+                    <i class="fa-solid fa-laptop text-xs"></i> Items Inventory
+                </a>
+                <a href="pemohon.php" class="sidebar-item <?php echo ($current_page == 'pemohon') ? 'sidebar-active' : ''; ?> flex items-center gap-3 p-3 text-gray-500 font-semibold hover:text-blue-900">
+                    <i class="fa-solid fa-users text-xs"></i> Staff & Students
+                </a>
+            </nav>
+        </div>
+
+        <!-- Transactions Section -->
+        <div>
+            <p class="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] mb-3 px-2">Transactions</p>
+            <nav class="space-y-1">
+                <a href="add_borrower.php" class="sidebar-item <?php echo ($current_page == 'add_borrower') ? 'sidebar-active' : ''; ?> flex items-center gap-3 p-3 text-gray-500 font-semibold hover:text-blue-900">
+                    <i class="fa-solid fa-file-circle-plus text-xs"></i> New Application
+                </a>
+                <a href="borrow.php" class="sidebar-item <?php echo ($current_page == 'borrow') ? 'sidebar-active' : ''; ?> flex items-center gap-3 p-3 text-gray-500 font-semibold hover:text-blue-900">
+                    <i class="fa-solid fa-bell-concierge text-xs"></i> Process Request
+                </a>
+                <a href="borrow_approved.php" class="sidebar-item <?php echo ($current_page == 'borrow_approved') ? 'sidebar-active' : ''; ?> flex items-center gap-3 p-3 text-gray-500 font-semibold hover:text-blue-900">
+                    <i class="fa-solid fa-print text-xs"></i> Print Application
+                </a>
+                <a href="return.php" class="sidebar-item <?php echo ($current_page == 'return') ? 'sidebar-active' : ''; ?> flex items-center gap-3 p-3 text-gray-500 font-semibold hover:text-blue-900">
+                    <i class="fa-solid fa-rotate-left text-xs"></i> Item Return
+                </a>
+            </nav>
+        </div>
+
+        <!-- Records Section -->
+        <div>
+            <p class="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] mb-3 px-2">Records</p>
+            <nav class="space-y-1">
+                <a href="view_return.php" class="sidebar-item <?php echo ($current_page == 'view_return') ? 'sidebar-active' : ''; ?> flex items-center gap-3 p-3 text-gray-500 font-semibold hover:text-blue-900">
+                    <i class="fa-solid fa-clipboard-check text-xs"></i> View Return Items
+                </a>
+                <a href="View_release_item.php" class="sidebar-item <?php echo ($current_page == 'view_release') ? 'sidebar-active' : ''; ?> flex items-center gap-3 p-3 text-gray-500 font-semibold hover:text-blue-900">
+                    <i class="fa-solid fa-box-open text-xs"></i> View Released Items
+                </a>
+                <a href="audit_borrow_register.php" class="sidebar-item <?php echo ($current_page == 'audit_register') ? 'sidebar-active' : ''; ?> flex items-center gap-3 p-3 text-gray-500 font-semibold hover:text-blue-900">
+                    <i class="fa-solid fa-file-shield text-xs"></i> Final Audit Register
+                </a>
+            </nav>
+        </div>
+
+        <!-- Administration Section -->
+        <div>
+            <p class="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] mb-3 px-2">Administration</p>
+            <nav class="space-y-1">
+                <a href="department_approvers.php" class="sidebar-item <?php echo ($current_page == 'department_approvers') ? 'sidebar-active' : ''; ?> flex items-center gap-3 p-3 text-gray-500 font-semibold hover:text-blue-900">
+                    <i class="fa-solid fa-user-check text-xs"></i> Department Approvers
+                </a>
+                <a href="add_user.php" class="sidebar-item <?php echo ($current_page == 'add_user') ? 'sidebar-active' : ''; ?> flex items-center gap-3 p-3 text-gray-500 font-semibold hover:text-blue-900">
+                    <i class="fa-solid fa-user-gear text-xs"></i> System Users
+                </a>
+            </nav>
+        </div>
+    </div>
+
+    <!-- Logout Button -->
+    <div class="pt-6 border-t border-gray-200/50 mt-auto">
+        <a href="logout.php" class="flex items-center gap-3 p-3 rounded-xl text-red-500 font-bold text-sm hover:bg-red-50 transition-all">
+            <i class="fa-solid fa-power-off text-xs"></i> Log Out
+        </a>
+    </div>
+</aside>

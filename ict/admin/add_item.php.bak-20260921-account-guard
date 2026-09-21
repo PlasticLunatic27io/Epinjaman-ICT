@@ -1,0 +1,404 @@
+<?php 
+require_once __DIR__ . "/../dbcon.php"; 
+$conn = dbcon(); 
+session_start();
+
+if (!isset($_SESSION['id']) || (trim($_SESSION['id']) == '')) {
+    header("location:index.php");
+    exit();
+}
+$session_id = $_SESSION['id'];
+
+$query_user = mysqli_query($conn, "SELECT * FROM user WHERE user_id = '$session_id'") or die(mysqli_error($conn));
+$user_row = mysqli_fetch_array($query_user);
+
+// Set current page for sidebar
+$current_page = 'item';
+?>
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Add Item | ePinjamICT</title>
+    
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <style>
+        :root {
+            --cream-bg: #FDFCF7;
+            --macos-glass: rgba(255, 255, 255, 0.65);
+            --primary-blue: #1E3A8A;
+        }
+
+        body {
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            background-color: var(--cream-bg);
+            background-image: radial-gradient(at 0% 0%, rgba(30, 58, 138, 0.03) 0px, transparent 40%);
+            color: #1F2937;
+            overflow: hidden;
+            height: 100vh;
+        }
+
+        .glass-panel {
+            background: var(--macos-glass);
+            backdrop-filter: blur(20px) saturate(180%);
+            border: 1px solid rgba(255, 255, 255, 0.7);
+        }
+
+        .form-card {
+            background: white;
+            border-radius: 30px;
+            box-shadow: 0 10px 40px -10px rgba(0, 0, 0, 0.05);
+            border: 1px solid rgba(0,0,0,0.02);
+        }
+
+        .sidebar-item {
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            border-radius: 12px;
+            font-size: 13px;
+        }
+
+        .sidebar-item:hover {
+            background: rgba(30, 58, 138, 0.06);
+            transform: translateX(4px);
+        }
+
+        .sidebar-active {
+            background: white !important;
+            box-shadow: 0 4px 20px -5px rgba(0,0,0,0.05);
+            color: #1E3A8A !important;
+            font-weight: 800;
+        }
+
+        input, select, textarea {
+            background: #F9FAFB !important;
+            border: 1.5px solid #F3F4F6 !important;
+            border-radius: 12px !important;
+            padding: 12px 16px !important;
+            font-size: 13px !important;
+            font-weight: 600 !important;
+            transition: all 0.3s ease !important;
+            width: 100%;
+        }
+
+        input:focus, select:focus, textarea:focus {
+            outline: none !important;
+            border-color: var(--primary-blue) !important;
+            background: white !important;
+            box-shadow: 0 0 0 4px rgba(30, 58, 138, 0.05) !important;
+        }
+
+        label {
+            font-size: 10px !important;
+            font-weight: 800 !important;
+            text-transform: uppercase !important;
+            letter-spacing: 0.1em !important;
+            color: #9CA3AF !important;
+            margin-bottom: 8px !important;
+            display: block;
+        }
+
+        .new-option {
+            background-color: #dff0d8 !important;
+            font-weight: 700 !important;
+        }
+
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        html { font-size: 14px; }
+    </style>
+</head>
+<body class="flex">
+
+    <?php include('sidebar_component.php'); ?>
+
+    <main class="flex-1 flex flex-col overflow-hidden">
+        
+        <!-- Header -->
+        <header class="h-20 glass-panel border-b border-gray-200 flex items-center justify-between px-10">
+            <div class="flex items-center gap-3">
+                <a href="item.php" class="text-gray-400 hover:text-blue-900 transition-all">
+                    <i class="fa-solid fa-circle-arrow-left text-xl"></i>
+                </a>
+                <div class="flex items-center gap-2">
+                    <span class="text-xs uppercase tracking-widest font-black text-blue-900/40">Inventory</span>
+                    <i class="fa-solid fa-chevron-right text-[10px] text-gray-300"></i>
+                    <h1 class="text-xs font-bold text-gray-600 italic">Add New Item</h1>
+                </div>
+            </div>
+
+            <div class="flex items-center gap-4">
+                <div class="text-right hidden sm:block">
+                    <p class="text-xs font-black text-blue-900 leading-none"><?php echo $user_row['name']; ?></p>
+                    <p class="text-[10px] font-bold text-amber-500 uppercase tracking-tighter italic">BP-ICT-2026</p>
+                </div>
+                <img src="<?php echo $user_row['adminthumbnails']; ?>" class="w-10 h-10 rounded-xl object-cover ring-2 ring-white shadow-md">
+            </div>
+        </header>
+
+        <!-- Main Content -->
+        <div class="flex-1 p-10 overflow-y-auto no-scrollbar">
+            
+            <div class="max-w-4xl mx-auto">
+                
+                <!-- Alert Info -->
+                <div class="mb-6 p-4 bg-blue-50 border-l-4 border-blue-900 rounded-xl flex items-center gap-3">
+                    <i class="fa-solid fa-circle-info text-blue-900 text-xl"></i>
+                    <p class="text-sm font-bold text-blue-900">Please fill in all required details to add new item to inventory</p>
+                </div>
+
+                <!-- Form Card -->
+                <div class="form-card p-10 border-l-[6px] border-emerald-500">
+                    
+                    <!-- Card Header -->
+                    <div class="flex items-center gap-4 mb-10 pb-6 border-b border-gray-100">
+                        <div class="w-14 h-14 bg-emerald-50 text-emerald-600 rounded-2xl flex items-center justify-center">
+                            <i class="fa-solid fa-box-open text-2xl"></i>
+                        </div>
+                        <div>
+                            <h2 class="text-2xl font-black text-blue-900 uppercase italic leading-none mb-1">Add Item / Stock</h2>
+                            <p class="text-xs text-gray-400 font-bold uppercase tracking-widest">Register New Equipment</p>
+                        </div>
+                    </div>
+
+                    <!-- Form -->
+                    <form method="post" class="space-y-6">
+                        
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <!-- Item Name -->
+                            <div class="space-y-2">
+                                <label for="item_name">
+                                    <i class="fa-solid fa-tag mr-1"></i> Item Name *
+                                </label>
+                                <select name="item_name" id="item_name" required onchange="checkNew(this, 'new_item_name_div')">
+                                    <option value="">-- Select Item Name --</option>
+                                    <?php
+                                        $res = mysqli_query($conn, "SELECT DISTINCT item_name FROM item ORDER BY item_name ASC");
+                                        while($row = mysqli_fetch_array($res)){
+                                            echo "<option value='".$row['item_name']."'>".$row['item_name']."</option>";
+                                        }
+                                    ?>
+                                    <option value="NEW" class="new-option">+ ADD NEW ITEM NAME</option>
+                                </select>
+                            </div>
+
+                            <!-- Item Tag -->
+                            <div class="space-y-2">
+                                <label for="item_tag">
+                                    <i class="fa-solid fa-barcode mr-1"></i> Item Tag No *
+                                </label>
+                                <input type="text" name="item_tag" id="item_tag" placeholder="Asset ID / Tag No" required>
+                            </div>
+                        </div>
+
+                        <!-- New Item Name (Hidden) -->
+                        <div id="new_item_name_div" class="space-y-2" style="display:none;">
+                            <label style="color: #2563eb !important;">
+                                <i class="fa-solid fa-plus-circle mr-1"></i> New Item Name *
+                            </label>
+                            <input type="text" name="new_item_name" placeholder="Enter new item name">
+                        </div>
+
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <!-- Category -->
+                            <div class="space-y-2">
+                                <label for="item_category">
+                                    <i class="fa-solid fa-layer-group mr-1"></i> Category *
+                                </label>
+                                <select name="item_category" id="item_category" required onchange="checkNew(this, 'new_cat_div')">
+                                    <option value="">-- Select Category --</option>
+                                    <option value="LAPTOP">LAPTOP</option>
+                                    <option value="SPEAKER">SPEAKER</option>
+                                    <option value="PROJECTOR">PROJECTOR</option>
+                                    <?php
+                                        $res = mysqli_query($conn, "SELECT DISTINCT item_category FROM item WHERE item_category NOT IN ('LAPTOP','SPEAKER','PROJECTOR')");
+                                        while($row = mysqli_fetch_array($res)){
+                                            echo "<option value='".$row['item_category']."'>".$row['item_category']."</option>";
+                                        }
+                                    ?>
+                                    <option value="NEW" class="new-option">+ ADD NEW CATEGORY</option>
+                                </select>
+                            </div>
+
+                            <!-- Brand -->
+                            <div class="space-y-2">
+                                <label for="brand">
+                                    <i class="fa-solid fa-copyright mr-1"></i> Brand *
+                                </label>
+                                <select name="brand" id="brand" required onchange="checkNew(this, 'new_brand_div')">
+                                    <option value="">-- Select Brand --</option>
+                                    <?php
+                                        $res = mysqli_query($conn, "SELECT DISTINCT brand FROM item WHERE brand != '' ORDER BY brand ASC");
+                                        while($row = mysqli_fetch_array($res)){
+                                            echo "<option value='".$row['brand']."'>".$row['brand']."</option>";
+                                        }
+                                    ?>
+                                    <option value="NEW" class="new-option">+ ADD NEW BRAND</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <!-- New Category (Hidden) -->
+                        <div id="new_cat_div" class="space-y-2" style="display:none;">
+                            <label style="color: #2563eb !important;">
+                                <i class="fa-solid fa-plus-circle mr-1"></i> New Category *
+                            </label>
+                            <input type="text" name="new_category" placeholder="Enter new category">
+                        </div>
+
+                        <!-- New Brand (Hidden) -->
+                        <div id="new_brand_div" class="space-y-2" style="display:none;">
+                            <label style="color: #2563eb !important;">
+                                <i class="fa-solid fa-plus-circle mr-1"></i> New Brand *
+                            </label>
+                            <input type="text" name="new_brand" placeholder="Enter new brand">
+                        </div>
+
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <!-- Model -->
+                            <div class="space-y-2">
+                                <label for="model">
+                                    <i class="fa-solid fa-microchip mr-1"></i> Model *
+                                </label>
+                                <select name="model" id="model" required onchange="checkNew(this, 'new_model_div')">
+                                    <option value="">-- Select Model --</option>
+                                    <?php
+                                        $res = mysqli_query($conn, "SELECT DISTINCT model FROM item WHERE model != '' ORDER BY model ASC");
+                                        while($row = mysqli_fetch_array($res)){
+                                            echo "<option value='".$row['model']."'>".$row['model']."</option>";
+                                        }
+                                    ?>
+                                    <option value="NEW" class="new-option">+ ADD NEW MODEL</option>
+                                </select>
+                            </div>
+
+                            <!-- Series No -->
+                            <div class="space-y-2">
+                                <label for="item_siri">
+                                    <i class="fa-solid fa-hashtag mr-1"></i> Series No (Optional)
+                                </label>
+                                <input type="text" name="item_siri" id="item_siri" placeholder="Serial number">
+                            </div>
+                        </div>
+
+                        <!-- New Model (Hidden) -->
+                        <div id="new_model_div" class="space-y-2" style="display:none;">
+                            <label style="color: #2563eb !important;">
+                                <i class="fa-solid fa-plus-circle mr-1"></i> New Model *
+                            </label>
+                            <input type="text" name="new_model" placeholder="Enter new model">
+                        </div>
+
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <!-- Quantity -->
+                            <div class="space-y-2">
+                                <label for="item_quantity">
+                                    <i class="fa-solid fa-boxes-stacked mr-1"></i> Quantity
+                                </label>
+                                <input type="number" name="item_quantity" id="item_quantity" value="1" min="1">
+                            </div>
+
+                            <!-- Status -->
+                            <div class="space-y-2">
+                                <label for="item_status">
+                                    <i class="fa-solid fa-circle-check mr-1"></i> Status
+                                </label>
+                                <select name="item_status" id="item_status">
+                                    <option value="Available">Available</option>
+                                    <option value="Borrowed">Borrowed</option>
+                                    <option value="Maintenance">Maintenance</option>
+                                    <option value="Damage">Damage</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <!-- Description -->
+                        <div class="space-y-2">
+                            <label for="item_description">
+                                <i class="fa-solid fa-align-left mr-1"></i> Description
+                            </label>
+                            <textarea name="item_description" id="item_description" rows="3" placeholder="Additional notes or description..."></textarea>
+                        </div>
+
+                        <!-- Action Buttons -->
+                        <div class="pt-6 border-t border-gray-100 flex gap-3">
+                            <button type="submit" name="save" class="flex-1 bg-blue-900 text-white px-10 py-4 rounded-2xl font-black text-xs uppercase tracking-[0.2em] shadow-2xl shadow-blue-900/30 hover:bg-emerald-600 hover:scale-105 transition-all">
+                                <i class="fa-solid fa-floppy-disk mr-2"></i>
+                                Save Item Data
+                            </button>
+                            <a href="item.php" class="px-8 py-4 bg-gray-100 text-gray-600 rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-gray-200 transition-all flex items-center justify-center">
+                                <i class="fa-solid fa-xmark mr-2"></i>
+                                Cancel
+                            </a>
+                        </div>
+                    </form>
+
+                    <?php
+                    if (isset($_POST['save'])){
+                        // Function untuk pilih data lama atau data baru
+                        function getData($selectVal, $newVal) {
+                            return ($selectVal === 'NEW') ? strtoupper($newVal) : $selectVal;
+                        }
+
+                        $item_name = getData($_POST['item_name'], $_POST['new_item_name']);
+                        $item_category = getData($_POST['item_category'], $_POST['new_category']);
+                        $brand = getData($_POST['brand'], $_POST['new_brand']);
+                        $model = getData($_POST['model'], $_POST['new_model']);
+                        
+                        $item_tag = mysqli_real_escape_string($conn, $_POST['item_tag']);
+                        $item_siri = mysqli_real_escape_string($conn, $_POST['item_siri']);
+                        $item_qty = intval($_POST['item_quantity']);
+                        $item_status = $_POST['item_status'];
+                        $item_description = mysqli_real_escape_string($conn, $_POST['item_description']);
+
+                        // Check if tag already exists
+                        $query = mysqli_query($conn, "SELECT * FROM item WHERE item_tag = '$item_tag'");
+                        if (mysqli_num_rows($query) > 0){
+                    ?>
+                        <script>
+                            alert('Item Tag Already Exists! Please use a different tag.');
+                        </script>
+                    <?php
+                        } else {
+                            mysqli_query($conn, "INSERT INTO item (item_name, item_tag, item_category, brand, model, item_status, item_quantity, item_description, item_siri) 
+                            VALUES('$item_name', '$item_tag', '$item_category', '$brand', '$model', '$item_status', '$item_qty', '$item_description', '$item_siri')") 
+                            or die(mysqli_error($conn));
+                    ?>
+                        <script>
+                            alert('Item Successfully Added to Inventory!');
+                            window.location = 'item.php';
+                        </script>
+                    <?php
+                        }
+                    }
+                    ?>
+                </div>
+
+                <!-- Footer -->
+                <footer class="mt-12 py-8 border-t border-gray-200/50 flex justify-between items-center opacity-40">
+                    <p class="text-[10px] font-black text-gray-500 uppercase tracking-[0.4em]">KPTM BP • 2026</p>
+                    <p class="text-[10px] font-black text-blue-900 uppercase">AHA Studio</p>
+                </footer>
+
+            </div>
+        </div>
+    </main>
+
+    <script>
+        function checkNew(select, divId) {
+            var div = document.getElementById(divId);
+            var input = div.getElementsByTagName('input')[0];
+            if(select.value === 'NEW') {
+                div.style.display = 'block';
+                input.setAttribute('required', 'required');
+            } else {
+                div.style.display = 'none';
+                input.removeAttribute('required');
+            }
+        }
+    </script>
+</body>
+</html>

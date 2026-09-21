@@ -1,0 +1,121 @@
+<?php
+require_once __DIR__ . '/admin_auth_guard.php';
+$activeAdminAccount = adminRequireActiveAccount($conn ?? null);
+
+// Admin navigation follows the borrowing process from request to audit.
+if (!isset($current_page)) $current_page = 'dashboard';
+if (!isset($conn) || !($conn instanceof mysqli)) {
+    require_once __DIR__ . '/../dbcon.php';
+    $conn = dbcon();
+}
+
+require_once __DIR__ . '/admin_notification_service.php';
+
+$sidebarAdminId = (int)($_SESSION['id'] ?? 0);
+$queueForPage = ['borrow' => 'requests', 'borrow_approved' => 'release'];
+if (isset($queueForPage[$current_page])) {
+    try {
+        adminNotificationMarkSeen($conn, $sidebarAdminId, $queueForPage[$current_page]);
+    } catch (Throwable $e) {
+        error_log('Sidebar mark seen: ' . $e->getMessage());
+    }
+}
+
+try {
+    $sidebarNotificationCounts = adminNotificationCounts($conn, $sidebarAdminId);
+} catch (Throwable $e) {
+    error_log('Sidebar unseen count: ' . $e->getMessage());
+    $sidebarNotificationCounts = ['requests' => 0, 'release' => 0, 'returns' => 0];
+}
+$newRequestCount = $sidebarNotificationCounts['requests'];
+$readyReleaseCount = $sidebarNotificationCounts['release'];
+$awaitingReturnCount = $sidebarNotificationCounts['returns'];
+
+function sidebarBadge(int $count, string $queueKey, string $tone = 'blue'): string {
+    $classes = $tone === 'amber' ? 'bg-amber-100 text-amber-700' : ($tone === 'green' ? 'bg-emerald-100 text-emerald-700' : 'bg-blue-100 text-blue-800');
+    $hidden = $count < 1 ? ' hidden' : '';
+    $display = $count > 99 ? '99+' : (string)$count;
+    return '<span data-notification-badge="' . htmlspecialchars($queueKey, ENT_QUOTES, 'UTF-8') . '" class="ml-auto min-w-[22px] h-[22px] px-1.5 inline-flex items-center justify-center rounded-full text-[10px] font-black ' . $classes . $hidden . '" aria-live="polite" aria-label="' . $count . ' unseen">' . $display . '</span>';
+}
+
+$navClass = 'sidebar-item flex items-center gap-3 p-3 text-gray-500 font-semibold hover:text-blue-900 transition-colors';
+?>
+
+<aside class="w-72 glass-panel h-screen flex flex-col p-6 z-50">
+    <div class="flex items-center gap-3 mb-8 px-2">
+        <div class="w-9 h-9 bg-blue-900 rounded-xl flex items-center justify-center shadow-lg transform rotate-3"><i class="fa-solid fa-bolt text-white text-sm"></i></div>
+        <span class="text-xl font-black tracking-tighter text-blue-900 uppercase italic">ePinjam<span class="text-amber-500">ICT</span></span>
+    </div>
+
+    <div class="flex-1 space-y-6 overflow-y-auto no-scrollbar pb-8">
+        <nav class="space-y-1">
+            <a href="dashboard.php" class="<?= $navClass ?> <?= $current_page === 'dashboard' ? 'sidebar-active' : '' ?>"><i class="fa-solid fa-chart-line text-xs"></i><span>Dashboard</span></a>
+        </nav>
+
+        <div>
+            <p class="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] mb-2 px-2">Borrowing Workflow</p>
+            <p class="text-[9px] text-gray-400 mb-3 px-2 leading-relaxed">Work from top to bottom for each request.</p>
+            <nav class="space-y-1">
+                <a href="add_borrower.php" class="<?= $navClass ?> <?= $current_page === 'add_borrower' ? 'sidebar-active' : '' ?>"><i class="fa-solid fa-file-circle-plus text-xs"></i><span>Create Application</span></a>
+                <a href="borrow.php" class="<?= $navClass ?> <?= $current_page === 'borrow' ? 'sidebar-active' : '' ?>"><i class="fa-solid fa-list-check text-xs"></i><span>Review Requests</span><?= sidebarBadge($newRequestCount, 'requests') ?></a>
+                <a href="borrow_approved.php" class="<?= $navClass ?> <?= $current_page === 'borrow_approved' ? 'sidebar-active' : '' ?>"><i class="fa-solid fa-box-arrow-up text-xs"></i><span>Approved &amp; Release</span><?= sidebarBadge($readyReleaseCount, 'release', 'green') ?></a>
+                <a href="return.php" class="<?= $navClass ?> <?= $current_page === 'return' ? 'sidebar-active' : '' ?>"><i class="fa-solid fa-rotate-left text-xs"></i><span>Process Returns</span></a>
+            </nav>
+        </div>
+
+        <div>
+            <p class="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] mb-3 px-2">Records &amp; Audit</p>
+            <nav class="space-y-1">
+                <a href="View_release_item.php" class="<?= $navClass ?> <?= $current_page === 'view_release' ? 'sidebar-active' : '' ?>"><i class="fa-solid fa-box-open text-xs"></i><span>Released Items</span></a>
+                <a href="view_return.php" class="<?= $navClass ?> <?= $current_page === 'view_return' ? 'sidebar-active' : '' ?>"><i class="fa-solid fa-clipboard-check text-xs"></i><span>Returned Items</span></a>
+                <a href="audit_borrow_register.php" class="<?= $navClass ?> <?= $current_page === 'audit_register' ? 'sidebar-active' : '' ?>"><i class="fa-solid fa-file-shield text-xs"></i><span>Final Audit Register</span></a>
+            </nav>
+        </div>
+
+        <div>
+            <p class="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] mb-3 px-2">System Setup</p>
+            <nav class="space-y-1">
+                <a href="item.php" class="<?= $navClass ?> <?= $current_page === 'item' ? 'sidebar-active' : '' ?>"><i class="fa-solid fa-laptop text-xs"></i><span>Items Inventory</span></a>
+                <a href="pemohon.php" class="<?= $navClass ?> <?= $current_page === 'pemohon' ? 'sidebar-active' : '' ?>"><i class="fa-solid fa-users text-xs"></i><span>Staff &amp; Students</span></a>
+                <a href="department_approvers.php" class="<?= $navClass ?> <?= $current_page === 'department_approvers' ? 'sidebar-active' : '' ?>"><i class="fa-solid fa-user-check text-xs"></i><span>Department Approvers</span></a>
+                <a href="add_user.php" class="<?= $navClass ?> <?= $current_page === 'add_user' ? 'sidebar-active' : '' ?>"><i class="fa-solid fa-user-gear text-xs"></i><span>System Users</span></a>
+            </nav>
+        </div>
+    </div>
+
+    <div class="pt-5 border-t border-gray-200/50 mt-auto"><a href="logout.php" class="flex items-center gap-3 p-3 rounded-xl text-red-500 font-bold text-sm hover:bg-red-50 transition-all"><i class="fa-solid fa-power-off text-xs"></i> Log Out</a></div>
+</aside>
+
+<script>
+(() => {
+    const updateBadges = (counts) => {
+        document.querySelectorAll('[data-notification-badge]').forEach((badge) => {
+            const key = badge.dataset.notificationBadge;
+            const count = Math.max(0, Number(counts[key] || 0));
+            badge.textContent = count > 99 ? '99+' : String(count);
+            badge.classList.toggle('hidden', count === 0);
+            badge.setAttribute('aria-label', count + ' unseen');
+        });
+    };
+
+    const refreshNotifications = async () => {
+        if (document.hidden) return;
+        try {
+            const response = await fetch('notification_counts.php', {
+                credentials: 'same-origin',
+                cache: 'no-store',
+                headers: {'Accept': 'application/json'}
+            });
+            if (!response.ok) return;
+            updateBadges(await response.json());
+        } catch (_) {
+            // Keep the last visible count if the local server is temporarily unavailable.
+        }
+    };
+
+    window.setInterval(refreshNotifications, 10000);
+    document.addEventListener('visibilitychange', () => {
+        if (!document.hidden) refreshNotifications();
+    });
+})();
+</script>

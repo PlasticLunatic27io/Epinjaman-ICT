@@ -1,0 +1,224 @@
+<?php 
+require_once __DIR__ . "/../dbcon.php"; 
+$conn = dbcon(); 
+session_start();
+
+if (!isset($_SESSION['id']) || (trim($_SESSION['id']) == '')) {
+    header("location:index.php");
+    exit();
+}
+$session_id = $_SESSION['id'];
+
+$query_user = mysqli_query($conn, "SELECT * FROM user WHERE user_id = '$session_id'") or die(mysqli_error($conn));
+$user_row = mysqli_fetch_array($query_user);
+
+// Set current page for sidebar
+$current_page = 'pemohon';
+?>
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Staff & Students | ePinjamICT</title>
+    
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <style>
+        :root {
+            --cream-bg: #FDFCF7;
+            --macos-glass: rgba(255, 255, 255, 0.65);
+            --primary-blue: #1E3A8A;
+        }
+
+        body {
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            background-color: var(--cream-bg);
+            background-image: radial-gradient(at 0% 0%, rgba(245, 158, 11, 0.03) 0px, transparent 40%);
+            color: #1F2937;
+            overflow: hidden;
+            height: 100vh;
+        }
+
+        .glass-panel {
+            background: var(--macos-glass);
+            backdrop-filter: blur(20px) saturate(180%);
+            border: 1px solid rgba(255, 255, 255, 0.7);
+        }
+
+        .table-container {
+            background: white;
+            border-radius: 24px;
+            box-shadow: 0 4px 30px rgba(0, 0, 0, 0.03);
+            border: 1px solid rgba(0,0,0,0.02);
+        }
+        
+        #pemohon_delete { 
+            display: none; 
+            position: fixed; 
+            z-index: 9999; 
+            left: 50%; 
+            top: 50%; 
+            transform: translate(-50%, -50%); 
+            width: 380px; 
+        }
+        #pemohon_delete.in { display: block !important; }
+        .custom-backdrop {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(253, 252, 247, 0.8);
+            backdrop-filter: blur(8px);
+            z-index: 9998;
+            display: none;
+        }
+        .custom-backdrop.show { display: block; }
+
+        .sidebar-item {
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            border-radius: 12px;
+            font-size: 13px;
+        }
+
+        .sidebar-item:hover {
+            background: rgba(30, 58, 138, 0.06);
+            transform: translateX(4px);
+        }
+
+        .sidebar-active {
+            background: white !important;
+            box-shadow: 0 4px 20px -5px rgba(0,0,0,0.05);
+            color: #1E3A8A !important;
+            font-weight: 800;
+        }
+
+        th {
+            font-size: 10px !important;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            color: #9CA3AF;
+            padding: 15px !important;
+        }
+        td {
+            padding: 15px !important;
+            font-size: 13px !important;
+            border-bottom: 1px solid #F9FAFB !important;
+        }
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        html { font-size: 14px; }
+    </style>
+</head>
+<body class="flex">
+
+    <?php include('sidebar_component.php'); ?>
+
+    <main class="flex-1 flex flex-col overflow-hidden">
+        <header class="h-20 glass-panel border-b border-gray-200 flex items-center justify-between px-10">
+            <div class="flex items-center gap-2">
+                <span class="text-xs uppercase tracking-widest font-black text-blue-900/40">Registered Files</span>
+                <i class="fa-solid fa-chevron-right text-[10px] text-gray-300"></i>
+                <h1 class="text-xs font-bold text-gray-600 italic">Staff & Students Directory</h1>
+            </div>
+
+            <div class="flex items-center gap-4">
+                <div class="text-right hidden sm:block">
+                    <p class="text-xs font-black text-blue-900 leading-none"><?php echo $user_row['name']; ?></p>
+                    <p class="text-[10px] font-bold text-amber-500 uppercase tracking-tighter italic">BP-ICT-2026</p>
+                </div>
+                <img src="<?php echo $user_row['adminthumbnails']; ?>" class="w-10 h-10 rounded-xl object-cover ring-2 ring-white shadow-md">
+            </div>
+        </header>
+
+        <div class="flex-1 p-10 overflow-y-auto no-scrollbar">
+            <div class="flex items-center justify-between mb-8">
+                <div class="flex gap-4">
+                     <a href="add_pemohon.php" class="bg-emerald-600 text-white px-6 py-3 rounded-2xl text-xs font-bold shadow-lg hover:bg-emerald-700 flex items-center gap-2">
+                        <i class="fa-solid fa-file-import"></i> Bulk Import
+                    </a>
+                  
+                </div>
+                <div class="bg-emerald-50 text-emerald-600 px-4 py-2 rounded-xl border border-emerald-100 font-black text-[11px] uppercase tracking-widest">
+                    Total: <?php $c = mysqli_query($conn,"select * from pemohon"); echo mysqli_num_rows($c); ?>
+                </div>
+            </div>
+
+            <div class="table-container p-4">
+                <form action="delete_pemohon.php" method="post">
+                    <div class="flex items-center justify-between mb-6 px-2">
+                        <button type="button" onclick="openModal()" class="text-red-500 text-[11px] font-black uppercase hover:bg-red-50 px-4 py-2 rounded-xl transition-all flex items-center gap-2 border border-red-100">
+                            <i class="fa-solid fa-trash-can"></i> Delete Selected
+                        </button>
+                    </div>
+
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left border-collapse">
+                            <thead>
+                                <tr>
+                                    <th class="w-10"></th>
+                                    <th>Personnel Name</th>
+                                    <th>College ID</th>
+                                    <th>Position & Unit</th>
+                                    <th>Email Address</th> <th>Status</th>
+                                    <th class="text-center">Modify</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <?php
+                                $pemohon_query = mysqli_query($conn,"select * from pemohon")or die(mysqli_error($conn));
+                                while($row = mysqli_fetch_array($pemohon_query)){
+                                    $id = $row['pemohon_id'];
+                                ?>
+                                <tr class="hover:bg-gray-50/50 transition-all group">
+                                    <td><input type="checkbox" name="selector[]" value="<?php echo $id; ?>" class="rounded text-blue-900 focus:ring-blue-900"></td>
+                                    <td><p class="font-black text-blue-900 uppercase text-xs"><?php echo $row['pemohon_name']; ?></p></td>
+                                    <td><span class="bg-gray-100 text-gray-600 px-2 py-1 rounded text-[10px] font-mono font-bold"><?php echo $row['pemohon_college_id']; ?></span></td>
+                                    <td><p class="text-[11px] font-bold text-gray-600"><?php echo $row['pemohon_position']; ?></p></td>
+                                    <td><p class="text-[11px] font-medium text-blue-600 underline decoration-blue-200"><?php echo $row['pemohon_email']; ?></p></td>
+                                    <td><span class="px-3 py-1 rounded-full text-[9px] font-black uppercase bg-emerald-50 text-emerald-600"><?php echo $row['pemohon_status']; ?></span></td>
+                                    <td class="text-center"><a href="edit_pemohon.php<?php echo '?id='.$id; ?>" class="text-blue-900 hover:text-blue-600 p-2"><i class="fa-solid fa-pen-nib"></i></a></td>
+                                </tr>
+                                <?php } ?>
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <div id="pemohon_delete" class="bg-white rounded-[30px] p-10 shadow-2xl border border-gray-100 text-center">
+                        <div class="w-16 h-16 bg-red-50 text-red-500 rounded-2xl flex items-center justify-center mx-auto mb-6">
+                            <i class="fa-solid fa-triangle-exclamation text-2xl"></i>
+                        </div>
+                        <h3 class="text-xl font-black text-blue-900 tracking-tighter uppercase">Sahkan Hapus?</h3>
+                        <p class="text-gray-400 text-xs font-medium mt-2 leading-relaxed">Adakah anda pasti mahu memadam rekod staf/pelajar yang dipilih? Tindakan ini tidak boleh diundur.</p>
+                        <div class="flex gap-4 mt-8">
+                            <button type="button" onclick="closeModal()" class="flex-1 py-3 text-[10px] font-black uppercase text-gray-400 hover:bg-gray-50 rounded-xl transition-all">Batal</button>
+                            <button name="delete_pemohon" class="flex-1 py-3 bg-red-500 text-white rounded-xl text-[10px] font-black uppercase shadow-lg shadow-red-200 hover:bg-red-600">Ya, Padam</button>
+                        </div>
+                    </div>
+                    <div id="modalBackdrop" class="custom-backdrop" onclick="closeModal()"></div>
+
+                </form>
+            </div>
+
+            <footer class="mt-12 py-8 border-t border-gray-200/50 flex justify-between items-center opacity-40">
+                <p class="text-[10px] font-black text-gray-500 uppercase tracking-[0.4em]">KPTM BP • 2026</p>
+                <p class="text-[10px] font-black text-blue-900 uppercase">AHA Studio</p>
+            </footer>
+        </div>
+    </main>
+
+    <script>
+        function openModal() {
+            document.getElementById('pemohon_delete').classList.add('in');
+            document.getElementById('modalBackdrop').classList.add('show');
+        }
+        function closeModal() {
+            document.getElementById('pemohon_delete').classList.remove('in');
+            document.getElementById('modalBackdrop').classList.remove('show');
+        }
+    </script>
+</body>
+</html>

@@ -1,0 +1,41 @@
+<?php
+
+function adminNotificationQueueSql(string $queueKey): string {
+    $queries = [
+        // Only records that still require action remain active.
+        'requests' => "SELECT borrow_id AS entity_id FROM borrowing WHERE status='Baru'",
+        'release' => "SELECT approval_id AS entity_id FROM borrowing_approvals WHERE state='approved' AND handed_over_at IS NULL",
+        // Process Returns is currently a borrower-search tool. An active loan is
+        // not a return request, so it must not create a notification badge.
+        'returns' => "SELECT borrow_item_id AS entity_id FROM borrowing_item WHERE 1=0",
+    ];
+    if (!isset($queries[$queueKey])) {
+        throw new InvalidArgumentException('Unknown notification queue.');
+    }
+    return $queries[$queueKey];
+}
+
+function adminNotificationMarkSeen(mysqli $conn, int $adminId, string $queueKey): void {
+    if ($adminId < 1) return;
+    $activeSql = adminNotificationQueueSql($queueKey);
+    $stmt = $conn->prepare("INSERT IGNORE INTO admin_queue_seen (admin_id, queue_key, entity_id, seen_at) SELECT ?, ?, active.entity_id, NOW() FROM ($activeSql) active");
+    $stmt->bind_param('is', $adminId, $queueKey);
+    $stmt->execute();
+}
+
+function adminNotificationUnseenCount(mysqli $conn, int $adminId, string $queueKey): int {
+    if ($adminId < 1) return 0;
+    $activeSql = adminNotificationQueueSql($queueKey);
+    $stmt = $conn->prepare("SELECT COUNT(*) FROM ($activeSql) active LEFT JOIN admin_queue_seen seen ON seen.admin_id=? AND seen.queue_key=? AND seen.entity_id=active.entity_id WHERE seen.entity_id IS NULL");
+    $stmt->bind_param('is', $adminId, $queueKey);
+    $stmt->execute();
+    return (int)($stmt->get_result()->fetch_row()[0] ?? 0);
+}
+
+function adminNotificationCounts(mysqli $conn, int $adminId): array {
+    return [
+        'requests' => adminNotificationUnseenCount($conn, $adminId, 'requests'),
+        'release' => adminNotificationUnseenCount($conn, $adminId, 'release'),
+        'returns' => adminNotificationUnseenCount($conn, $adminId, 'returns'),
+    ];
+}
